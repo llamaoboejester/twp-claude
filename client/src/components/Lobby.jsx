@@ -3,7 +3,7 @@ import { useGame } from '../context/GameContext';
 import '../styles.css';
 
 const MODULE_OPTIONS = [
-  { key: 'personalities',   label: 'Personalities',    desc: 'Asymmetric player powers' },
+  { key: 'personalities',   label: 'Personalities',    desc: 'Asymmetric player powers (coming soon — no effect yet)' },
   { key: 'weddingPlanners', label: 'Wedding Planners',  desc: 'Per-player contracts & exclusive venues' },
   { key: 'specialGuests',   label: 'Special Guests',    desc: 'Drawn at Check-In 2 (content TBD)' },
   { key: 'checkin3Event',   label: 'Check-In 3 Event',  desc: 'Table-wide Q4 bonus' },

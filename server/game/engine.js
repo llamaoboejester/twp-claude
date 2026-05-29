@@ -67,6 +67,7 @@ class GameEngine {
       playerOrder: [],
       currentPlayerIndex: 0,
       pendingAction: null,  // what we're waiting on from the current player
+      pendingActionSeq: 0, // increments each time pendingAction is set, used as React key
       executionStack: [],   // bonus actions to resolve (depth-first)
       deferredEfforts: [],  // pending effort grants waiting to be applied
       players: {},
@@ -82,6 +83,7 @@ class GameEngine {
         raceAward: null,
         endgameAward: null,
         raceAwardWinners: [],
+        raceAwardMonth: null,
         firstPlayerIndex: 0,
         checkin3Event: null,
         weatherDieResult: null,
@@ -129,7 +131,10 @@ class GameEngine {
       plannerContracted: false,
       plannerEffortPool: 0,
       diyCount: 0,
-      pendingEffort: 0,  // effort waiting to be applied (from milestone grants)
+      pendingEffort: 0,
+      pendingEffortRestricted: 0,  // starred tasks only (from help/venue effects with restriction:'starred')
+      pendingExcitementMilestones: [],
+      justBookedVenue: false,
     };
     this._state.playerOrder.push(id);
     this._log(`${name} joined.`);
@@ -205,6 +210,8 @@ class GameEngine {
         if (contract) {
           const excl = PLANNER_EXCLUSIVE_VENUES.find(v => v.id === contract.exclusiveVenueId);
           p.plannerContract = { ...contract, exclusiveVenue: excl || null };
+        } else {
+          console.warn(`[engine] Planner contract pool exhausted — player ${p.name} has no contract`);
         }
       }
     });
@@ -221,6 +228,12 @@ class GameEngine {
 
     this._log('Game started! Month 1 begins.');
     return { success: true };
+  }
+
+  _setPending(pa) {
+    const s = this._state;
+    s.pendingActionSeq = (s.pendingActionSeq || 0) + 1;
+    s.pendingAction = pa ? { ...pa, _seq: s.pendingActionSeq } : null;
   }
 
   // ── Action dispatch ────────────────────────────────────────────────────────
@@ -315,7 +328,12 @@ class GameEngine {
     }
 
     if (action === 'book') {
-      if (player.hand.length === 0) {
+      const hasExclusiveVenue = player.plannerContracted && player.grid[4] === null
+        && !!player.plannerContract?.exclusiveVenue;
+      const openMarket = s.shared.checkin3Event?.effect?.type === 'open_market';
+      const hasFvrCards = s.shared.fvr.length > 0;
+
+      if (player.hand.length === 0 && !hasExclusiveVenue && !(openMarket && hasFvrCards)) {
         // Fallback: gain 1 excitement
         this._gainExcitement(player, 1);
         this._log(`${player.name} has no cards to book — fallback: +1 excitement.`);
@@ -325,6 +343,7 @@ class GameEngine {
         type: 'CHOOSE_BOOK_TARGET',
         isBonus,
         positions: this._availableBookPositions(player),
+        exclusiveVenue: hasExclusiveVenue ? player.plannerContract.exclusiveVenue : null,
       };
       return { success: true };
     }
@@ -423,8 +442,26 @@ class GameEngine {
     const s = this._state;
 
     const cardIdx = player.hand.findIndex(c => c.id === cardId);
-    if (cardIdx === -1) return { success: false, error: 'Card not in hand' };
-    const card = player.hand[cardIdx];
+    let card;
+    let fromFvr = false;
+
+    if (cardIdx !== -1) {
+      card = player.hand[cardIdx];
+    } else {
+      const openMarket = s.shared.checkin3Event?.effect?.type === 'open_market';
+      if (openMarket) {
+        const fvrIdx = s.shared.fvr.findIndex(c => c.id === cardId);
+        if (fvrIdx !== -1) {
+          card = s.shared.fvr.splice(fvrIdx, 1)[0];
+          fromFvr = true;
+        }
+      }
+      if (!card && player.plannerContracted && player.grid[4] === null
+          && player.plannerContract?.exclusiveVenue?.id === cardId) {
+        card = player.plannerContract.exclusiveVenue;
+      }
+      if (!card) return { success: false, error: 'Card not in hand or FVR' };
+    }
 
     // Validate position
     const pos = parseInt(position, 10);
@@ -432,7 +469,7 @@ class GameEngine {
     if (player.grid[pos] !== null) return { success: false, error: 'Position already occupied' };
     if (card.type === 'venue' && pos !== 4) return { success: false, error: 'Venues go in center position only' };
     if (card.type === 'vendor' && pos === 4) return { success: false, error: 'Center position is for venues only' };
-    if (card.type === 'venue' && diy) return { success: false, error: 'Exclusive venues cannot be DIY booked' };
+    if (card.type === 'venue' && diy) return { success: false, error: 'Venues cannot be DIY booked' };
 
     // DIY restriction with planner
     if (diy && player.plannerContracted && player.diyCount >= 1) {
@@ -445,13 +482,14 @@ class GameEngine {
 
     if (!diy) player.coins -= cost;
 
-    // Remove card from hand
-    player.hand.splice(cardIdx, 1);
+    // Remove card from source (already removed from FVR above if fromFvr)
+    if (!fromFvr) player.hand.splice(cardIdx, 1);
 
     // Place card
     const placedCard = { ...card, diy: !!diy };
     player.grid[pos] = placedCard;
     if (diy) player.diyCount++;
+    if (card.type === 'venue') player.justBookedVenue = true;
 
     s.pendingAction = null;
 
@@ -542,8 +580,11 @@ class GameEngine {
         break;
       }
       case 'apply_effort': {
-        // Grant effort to apply — add to deferred pool, will ask player where to put it
-        player.pendingEffort += effect.amount;
+        if (effect.restriction === 'starred') {
+          player.pendingEffortRestricted += effect.amount;
+        } else {
+          player.pendingEffort += effect.amount;
+        }
         this._log(`${player.name} gains ${effect.amount} effort from When Booked.`);
         break;
       }
@@ -609,8 +650,9 @@ class GameEngine {
       ws.effortApplied++;
 
       // Slot-specific hook
-      if (taskDef.slotHooks[slotIndex]) {
-        this._applyReward(player, taskDef.slotHooks[slotIndex]);
+      const hook = taskDef.slotHooks[slotIndex];
+      if (hook) {
+        this._applyReward(player, hook);
       }
 
       // Task completion
@@ -663,10 +705,10 @@ class GameEngine {
       return { success: true };
     }
 
-    this._resolveHelpEffect(player, card.effect, card);
     this._addHelper(player, card);
-
     s.pendingAction = null;
+    this._resolveHelpEffect(player, card.effect, card);
+    if (s.pendingAction) return { success: true };
     return this._continueStack(playerId, player);
   }
 
@@ -676,10 +718,10 @@ class GameEngine {
     const card = s.pendingAction.card;
 
     const effect = choice === 'A' ? card.choiceA : card.choiceB;
-    this._resolveHelpEffect(player, effect, card);
     this._addHelper(player, card);
-
     s.pendingAction = null;
+    this._resolveHelpEffect(player, effect, card);
+    if (s.pendingAction) return { success: true };
     return this._continueStack(playerId, player);
   }
 
@@ -709,7 +751,11 @@ class GameEngine {
         break;
       }
       case 'apply_effort':
-        player.pendingEffort += effect.amount;
+        if (effect.restriction === 'starred') {
+          player.pendingEffortRestricted += effect.amount;
+        } else {
+          player.pendingEffort += effect.amount;
+        }
         this._log(`${player.name} gains ${effect.amount} effort from ${card.name}.`);
         break;
       default:
@@ -718,7 +764,6 @@ class GameEngine {
   }
 
   _addHelper(player, card) {
-    const wasFull = player.helpers.length === 2;
     player.helpers.push({ ...card, faceUp: false, slotIndex: player.helpers.length });
 
     if (player.helpers.length === 3) {
@@ -789,15 +834,48 @@ class GameEngine {
   _continueStack(playerId, player) {
     const s = this._state;
 
-    // Check for pending effort first
+    // Race award check — runs after every action (booking already checks this too)
+    this._checkRaceAwards(player);
+
+    // Drain excitement milestones first (queued by _gainExcitement)
+    if (player.pendingExcitementMilestones.length > 0) {
+      const pos = player.pendingExcitementMilestones.shift();
+      s.pendingAction = {
+        type: 'CHOOSE_EXCITEMENT_MILESTONE',
+        position: pos,
+        canFvr: player.plannerContracted,
+        venueDeckEmpty: s.shared.venueDeck.length === 0,
+        fvrEmpty: s.shared.fvr.length === 0,
+      };
+      return { success: true };
+    }
+
+    // Restricted effort (starred tasks only — from help cards / venue effects)
+    if (player.pendingEffortRestricted > 0) {
+      const unlocked = this._getUnlockedTasks(player, s.month).filter(t => t.starred);
+      if (unlocked.length > 0) {
+        this._setPending({
+          type: 'APPLY_DEFERRED_EFFORT',
+          effortAmount: player.pendingEffortRestricted,
+          unlockedTasks: unlocked.map(t => t.id),
+          starredOnly: true,
+        });
+        return { success: true };
+      } else {
+        player.pendingEffortRestricted = 0;
+      }
+    }
+
+    // Unrestricted effort (from task milestones, planner, etc.)
     if (player.pendingEffort > 0) {
       const unlocked = this._getUnlockedTasks(player, s.month);
       if (unlocked.length > 0) {
-        s.pendingAction = {
+        this._setPending({
           type: 'APPLY_DEFERRED_EFFORT',
           effortAmount: player.pendingEffort,
           unlockedTasks: unlocked.map(t => t.id),
-        };
+          starredOnly: false,
+        });
         return { success: true };
       } else {
         player.pendingEffort = 0;
@@ -822,9 +900,12 @@ class GameEngine {
   _resolveApplyDeferredEffort(playerId, action, player) {
     const { assignments } = action.payload;
     const s = this._state;
+    const pa = s.pendingAction;
+    const starredOnly = !!pa.starredOnly;
     const total = Object.values(assignments || {}).reduce((a, b) => a + b, 0);
 
-    if (total > player.pendingEffort) {
+    const pool = starredOnly ? player.pendingEffortRestricted : player.pendingEffort;
+    if (total > pool) {
       return { success: false, error: 'Assigning more effort than available' };
     }
 
@@ -835,11 +916,17 @@ class GameEngine {
       if (!unlockedIds.has(taskId)) return { success: false, error: `Task ${taskId} not unlocked` };
       const taskDef = TASKS.find(t => t.id === taskId);
       if (!taskDef) continue;
-      if (taskDef.key) return { success: false, error: 'Key tasks cannot receive helper effort' };
+      if (starredOnly && !taskDef.starred) {
+        return { success: false, error: 'This effort can only be applied to starred tasks' };
+      }
       this._applyEffortToTask(player, taskDef, count, s.month);
     }
 
-    player.pendingEffort -= total;
+    if (starredOnly) {
+      player.pendingEffortRestricted -= total;
+    } else {
+      player.pendingEffort -= total;
+    }
     s.pendingAction = null;
     return this._continueStack(playerId, player);
   }
@@ -902,7 +989,14 @@ class GameEngine {
 
   _canDoAction(action, player, state) {
     if (action === 'help' && player.helpers.length >= 3) return false;
-    if (action === 'book' && player.hand.length === 0) return false;
+    if (action === 'book') {
+      const openMarket = state.shared.checkin3Event?.effect?.type === 'open_market';
+      const hasExclusiveVenue = player.plannerContracted && player.grid[4] === null
+        && !!player.plannerContract?.exclusiveVenue;
+      if (player.hand.length === 0
+          && !(openMarket && state.shared.fvr.length > 0)
+          && !hasExclusiveVenue) return false;
+    }
     if (action === 'plan' && this._getUnlockedTasks(player, state.month).length === 0) return false;
     return true;
   }
@@ -913,8 +1007,7 @@ class GameEngine {
     const s = this._state;
 
     // If player booked a venue this turn, discard remaining venues to FVR
-    const justBookedVenue = player.grid[4] !== null;
-    if (justBookedVenue) {
+    if (player.justBookedVenue) {
       const venuesInHand = player.hand.filter(c => c.type === 'venue');
       if (venuesInHand.length > 0) {
         venuesInHand.forEach(v => s.shared.fvr.push(v));
@@ -934,6 +1027,7 @@ class GameEngine {
       s.pendingAction = {
         type: 'CHOOSE_HAND_DISCARD',
         required: totalDiscard,
+        mustDiscardVenues: venueOverflow,
         handSize: player.hand.length,
         venueCount,
       };
@@ -952,6 +1046,16 @@ class GameEngine {
       return { success: false, error: `Must discard exactly ${pa.required} card(s)` };
     }
 
+    if (pa.mustDiscardVenues > 0) {
+      const venueDiscardCount = cardIds.filter(id => {
+        const c = player.hand.find(c => c.id === id);
+        return c && c.type === 'venue';
+      }).length;
+      if (venueDiscardCount < pa.mustDiscardVenues) {
+        return { success: false, error: `Must discard at least ${pa.mustDiscardVenues} venue card(s)` };
+      }
+    }
+
     for (const id of cardIds) {
       const idx = player.hand.findIndex(c => c.id === id);
       if (idx === -1) return { success: false, error: `Card ${id} not in hand` };
@@ -968,13 +1072,14 @@ class GameEngine {
 
   _endTurn(playerId, player) {
     const s = this._state;
+    player.justBookedVenue = false;
     this._log(`${player.name}'s turn ends.`);
 
     // Advance to next player
     s.currentPlayerIndex = (s.currentPlayerIndex + 1) % s.playerOrder.length;
 
-    // If we've wrapped back to player 0, the month is complete
-    if (s.currentPlayerIndex === 0) {
+    // If we've cycled back to the first player, the month is complete
+    if (s.currentPlayerIndex === s.shared.firstPlayerIndex) {
       return this._advanceMonth();
     }
 
@@ -1086,7 +1191,6 @@ class GameEngine {
     s.shared.firstPlayerIndex = (s.shared.firstPlayerIndex + 1) % s.playerOrder.length;
 
     // Clear FVR and reseed
-    s.shared.fvr = [];
     const fvrCount = s.playerOrder.length + 1;
     s.shared.fvr = s.shared.vendorDeck.splice(0, fvrCount);
     if (s.shared.fvr.length < fvrCount) {
@@ -1127,10 +1231,16 @@ class GameEngine {
       scores[pid] = this._scorePlayer(pid);
     });
 
+    // Race award — record how much each winner gained (applied during play)
+    s.shared.raceAwardWinners.forEach(pid => {
+      if (scores[pid]) scores[pid].raceAward = s.shared.raceAward?.gifts || 0;
+    });
+
     // Endgame award
     const winner = this._resolveEndgameAward(s, scores);
     winner.forEach(pid => {
       s.players[pid].gifts += s.shared.endgameAward.gifts;
+      if (scores[pid]) scores[pid].endgameAward = s.shared.endgameAward.gifts;
       this._log(`${s.players[pid].name} wins Endgame Award: ${s.shared.endgameAward.name} (+${s.shared.endgameAward.gifts} gifts).`);
     });
 
@@ -1143,7 +1253,7 @@ class GameEngine {
   _scorePlayer(pid) {
     const s = this._state;
     const p = s.players[pid];
-    const breakdown = {};
+    const breakdown = { balanced: 0 };
 
     // Excitement → gifts
     breakdown.excitement = p.excitement;
@@ -1168,7 +1278,6 @@ class GameEngine {
       }
     }
 
-    breakdown.total = p.gifts;
     return breakdown;
   }
 
@@ -1183,27 +1292,29 @@ class GameEngine {
   _evalThemeGoal(player) {
     if (!player.theme) return 0;
     const [e1, e2] = player.theme.elements;
-    const vals = ELEMENTS.map(el => ({ el, v: player.themeElements[el] }));
-    vals.sort((a, b) => b.v - a.v);
-
-    const themeVals = [player.themeElements[e1], player.themeElements[e2]].sort((a, b) => b - a);
+    const e1Val = player.themeElements[e1];
+    const e2Val = player.themeElements[e2];
     const nonThemeEls = ELEMENTS.filter(el => el !== e1 && el !== e2);
     const allZero = nonThemeEls.every(el => player.themeElements[el] === 0);
+    const themeMin = Math.min(e1Val, e2Val);
 
     // Unforgettable: only theme elements have progress
-    if (allZero && themeVals[1] > 0) return 30;
+    if (allZero && themeMin > 0) return 30;
 
-    // Thematic: theme elements are strictly top 2
-    const top2 = vals.slice(0, 2).map(x => x.el);
-    if (top2.includes(e1) && top2.includes(e2)) {
-      const top2Vals = [vals[0].v, vals[1].v];
-      const nonThemeTop = nonThemeEls.some(el => player.themeElements[el] >= Math.min(...themeVals));
-      if (!nonThemeTop) return 20;
-      return 15;  // Coordinated
+    // Use value threshold for top-2 check — avoids sort-order bias in ties
+    const allVals = ELEMENTS.map(el => player.themeElements[el]).sort((a, b) => b - a);
+    const top2Threshold = allVals[1] ?? 0;
+    const e1InTop2 = e1Val >= top2Threshold && e1Val > 0;
+    const e2InTop2 = e2Val >= top2Threshold && e2Val > 0;
+
+    // Thematic / Coordinated: both theme elements qualify for top 2
+    if (e1InTop2 && e2InTop2) {
+      const nonThemeTop = nonThemeEls.some(el => player.themeElements[el] >= themeMin);
+      return nonThemeTop ? 15 : 20;
     }
 
     // Subtle: at least 1 theme element in top 2
-    if (top2.includes(e1) || top2.includes(e2)) return 10;
+    if (e1InTop2 || e2InTop2) return 10;
     return 0;
   }
 
@@ -1322,18 +1433,13 @@ class GameEngine {
     const gained = player.excitement - prev;
     if (gained <= 0) return;
 
-    // Check milestones crossed
+    this._log(`${player.name} gains ${gained} excitement (${prev} → ${player.excitement}).`);
+
+    // Queue all milestones crossed (handled in _continueStack)
     for (const pos of EXCITEMENT_MILESTONES) {
       if (prev < pos && player.excitement >= pos) {
-        this._state.pendingAction = {
-          type: 'CHOOSE_EXCITEMENT_MILESTONE',
-          position: pos,
-          canFvr: player.plannerContracted,
-        };
+        player.pendingExcitementMilestones.push(pos);
         this._log(`${player.name} hits excitement milestone at ${pos}!`);
-        // Note: multiple milestones could be crossed; only handle first here
-        // More complex handling can be added later
-        break;
       }
     }
   }
@@ -1358,14 +1464,10 @@ class GameEngine {
       const status = s.shared.momentStatus[moment.id];
       if (status.completedBy.includes(player.id)) return;
 
-      // Pattern check: all pattern positions filled, all non-pattern positions empty
+      // Pattern check: all pattern positions filled
       const patternMet = moment.pattern.every(pos => grid[pos] !== null);
-      const emptyMet = grid.every((cell, pos) => {
-        if (moment.pattern.includes(pos)) return true;
-        return cell === null;
-      });
 
-      if (patternMet && emptyMet) {
+      if (patternMet) {
         status.completedBy.push(player.id);
         const isFirst = status.firstCompletedMonth === null || status.firstCompletedMonth === s.month;
 
@@ -1388,19 +1490,13 @@ class GameEngine {
   _checkRaceAwards(player) {
     const s = this._state;
     const award = s.shared.raceAward;
-    if (!award || s.shared.raceAwardWinners.length > 0) return;
+    if (!award) return;
+    if (s.shared.raceAwardWinners.includes(player.id)) return;
+    // Award locked to first-win month — no winners in later months
+    if (s.shared.raceAwardMonth !== null && s.shared.raceAwardMonth !== s.month) return;
+    if (!this._meetsRaceCondition(player, award)) return;
 
-    // Same month: all who meet threshold this month get award
-    const met = this._meetsRaceCondition(player, award);
-    if (!met) return;
-
-    // Check if anyone in same month already claimed
-    const alreadyThisMonth = s.shared.raceAwardWinners.length > 0 &&
-      s.shared.raceAwardWinners.every(pid => {
-        // We'd need to track the month won; for now treat as: claim immediately
-        return false;
-      });
-
+    if (s.shared.raceAwardMonth === null) s.shared.raceAwardMonth = s.month;
     s.shared.raceAwardWinners.push(player.id);
     player.gifts += award.gifts;
     this._log(`${player.name} wins Race Award "${award.name}" — +${award.gifts} gifts!`);
@@ -1458,7 +1554,11 @@ class GameEngine {
     const s = this._state;
     const drawn = [];
     for (let i = 0; i < count; i++) {
-      if (s.shared.venueDeck.length > 0) drawn.push(s.shared.venueDeck.shift());
+      if (s.shared.venueDeck.length === 0) {
+        this._log('Venue deck is empty — no venue card drawn.');
+        break;
+      }
+      drawn.push(s.shared.venueDeck.shift());
     }
     return drawn;
   }
@@ -1500,10 +1600,17 @@ class GameEngine {
 
   _log(message) {
     this._state.log.push({ timestamp: Date.now(), message });
-    if (this._state.log.length > 200) this._state.log.shift();
+    if (this._state.log.length > 500) {
+      this._state.log.shift();
+      this._state.log[0] = { timestamp: Date.now(), message: '— older entries removed —' };
+    }
   }
 
   // ── Public API ────────────────────────────────────────────────────────────
+
+  getPhase() {
+    return this._state.phase;
+  }
 
   getState() {
     return deepClone(this._state);

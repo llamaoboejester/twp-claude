@@ -6,10 +6,10 @@ const GOAL_TYPES = [
   {
     type: 'theme', label: 'Theme Goal',
     tiers: [
-      { key: 'unforgettable', label: 'Unforgettable', gifts: 30, desc: 'Only your 2 theme elements have any progress (30 gifts)' },
-      { key: 'thematic',      label: 'Thematic',      gifts: 20, desc: 'Theme elements are strictly the top 2 (20 gifts)' },
-      { key: 'coordinated',   label: 'Coordinated',   gifts: 15, desc: 'Both theme elements are in the top 2 (ties allowed) (15 gifts)' },
-      { key: 'subtle',        label: 'Subtle',         gifts: 10, desc: 'At least 1 theme element in top 2 (10 gifts)' },
+      { key: 'unforgettable', label: 'Unforgettable', gifts: 30, desc: 'Only your 2 theme elements have any progress at game end (30 gifts)' },
+      { key: 'thematic',      label: 'Thematic',      gifts: 20, desc: 'Both theme elements in the top 2; no other element is as high as the lower theme element (20 gifts)' },
+      { key: 'coordinated',   label: 'Coordinated',   gifts: 15, desc: 'Both theme elements in the top 2; another element may tie the lower theme element (15 gifts)' },
+      { key: 'subtle',        label: 'Subtle',         gifts: 10, desc: 'At least 1 theme element ranks in the top 2 (10 gifts)' },
     ],
   },
   {
@@ -85,7 +85,8 @@ function ThemeChoice({ player, sendAction }) {
     return <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>Loading theme cards…</div>;
   }
 
-  const ELEMENT_ICONS = { whimsy: '🌀', edge: '⚡', nature: '🌿', tradition: '💍', elegance: '💎' };
+  const ELEMENT_ICONS  = { whimsy: '🌀', edge: '⚡', nature: '🌿', tradition: '💍', elegance: '💎' };
+  const ELEMENT_COLORS = { whimsy: '#ff69b4', edge: '#9c27b0', nature: '#4caf50', tradition: '#8b1a1a', elegance: '#c9a227' };
 
   return (
     <div>
@@ -107,7 +108,8 @@ function ThemeChoice({ player, sendAction }) {
             <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 6 }}>{card.name}</div>
             <div style={{ display: 'flex', gap: 6 }}>
               {card.elements.map(el => (
-                <span key={el} className={`tag element-${el}`}>
+                <span key={el} className={`tag element-${el}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: ELEMENT_COLORS[el], display: 'inline-block', flexShrink: 0 }} />
                   {ELEMENT_ICONS[el]} {el}
                 </span>
               ))}

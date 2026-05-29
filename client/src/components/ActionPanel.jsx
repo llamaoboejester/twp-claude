@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
 import { useGame } from '../context/GameContext';
 import VendorGrid from './VendorGrid';
+import { TASK_DEFS } from '../data/taskDefs';
 import '../styles.css';
 
 const ELEMENTS = ['whimsy', 'edge', 'nature', 'tradition', 'elegance'];
 const ELEMENT_ICONS = { whimsy: '🌀', edge: '⚡', nature: '🌿', tradition: '💍', elegance: '💎' };
+const ELEMENT_COLORS = { whimsy: '#ff69b4', edge: '#9c27b0', nature: '#4caf50', tradition: '#8b1a1a', elegance: '#c9a227' };
+const TASK_DEFS_MAP = Object.fromEntries(TASK_DEFS.map(d => [d.id, d]));
 
 export default function ActionPanel() {
   const { gameState, playerId, sendAction, isMyTurn } = useGame();
@@ -91,8 +94,8 @@ function PendingActionResolver({ pa, player }) {
     case 'CHOOSE_RESEARCH_SOURCE':    return <ResearchSource pa={pa} sendAction={sendAction} />;
     case 'CHOOSE_FVR_CARD':           return <FvrPick pa={pa} sendAction={sendAction} />;
     case 'CHOOSE_BOOK_TARGET':        return <BookTarget pa={pa} player={player} sendAction={sendAction} />;
-    case 'CHOOSE_PLAN_EFFORT':        return <PlanEffort pa={pa} player={player} sendAction={sendAction} />;
-    case 'APPLY_DEFERRED_EFFORT':     return <PlanEffort pa={{ ...pa, type: 'CHOOSE_PLAN_EFFORT' }} player={player} sendAction={sendAction} deferred />;
+    case 'CHOOSE_PLAN_EFFORT':        return <PlanEffort key="plan" pa={pa} player={player} sendAction={sendAction} />;
+    case 'APPLY_DEFERRED_EFFORT':     return <PlanEffort key={`deferred-${pa._seq}`} pa={{ ...pa, type: 'CHOOSE_PLAN_EFFORT' }} player={player} sendAction={sendAction} deferred />;
     case 'CHOOSE_HELP_DECK':          return <HelpDeck pa={pa} sendAction={sendAction} />;
     case 'CHOOSE_HELP_CHOICE':        return <HelpChoice pa={pa} sendAction={sendAction} />;
     case 'CHOOSE_WILD':               return <WildChoice pa={pa} sendAction={sendAction} />;
@@ -149,20 +152,30 @@ function BookTarget({ pa, player, sendAction }) {
   const [diy, setDiy]                   = useState(false);
   const { gameState } = useGame();
 
-  // For Open Market event: can also pick from FVR
   const openMarket = gameState?.shared?.checkin3Event?.effect?.type === 'open_market';
+  const fvr = gameState?.shared?.fvr || [];
+  const exclusiveVenue = pa.exclusiveVenue || null;
 
-  const card = player.hand.find(c => c.id === selectedCard);
+  const card = player.hand.find(c => c.id === selectedCard)
+    || fvr.find(c => c.id === selectedCard)
+    || (exclusiveVenue?.id === selectedCard ? exclusiveVenue : null);
+
   const isVenue = card?.type === 'venue';
-  const validPositions = pa.positions.filter(pos => {
-    if (isVenue) return pos === 4;
-    return pos !== 4;
-  });
+  const validPositions = pa.positions.filter(pos => isVenue ? pos === 4 : pos !== 4);
+
+  function effectiveCost(c) {
+    if (!c) return 0;
+    const ev = gameState?.shared?.checkin3Event?.effect;
+    if (ev?.type === 'cost_reduction' && c.type === 'vendor' && c.cost >= ev.minCost) {
+      return Math.min(c.cost, ev.reduceTo);
+    }
+    return c.cost;
+  }
 
   function canBook() {
     if (!selectedCard || selectedPos === null) return false;
     if (isVenue && diy) return false;
-    if (!diy && card && player.coins < card.cost) return false;
+    if (!diy && card && player.coins < effectiveCost(card)) return false;
     return true;
   }
 
@@ -171,17 +184,48 @@ function BookTarget({ pa, player, sendAction }) {
       <div style={{ marginBottom: 8 }}>
         <div className="section-label">Your Hand ({player.hand.length} cards)</div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {player.hand.map(c => (
-            <HandCard key={c.id} card={c} selectable
-              selected={selectedCard === c.id}
-              onClick={() => { setSelectedCard(c.id); setSelectedPos(null); setDiy(false); }} />
-          ))}
+          {player.hand.length === 0
+            ? <span style={{ color: 'var(--text-dim)', fontSize: 12 }}>No cards in hand</span>
+            : player.hand.map(c => (
+              <HandCard key={c.id} card={c} selectable
+                selected={selectedCard === c.id}
+                onClick={() => { setSelectedCard(c.id); setSelectedPos(null); setDiy(false); }} />
+            ))
+          }
         </div>
       </div>
 
+      {openMarket && (
+        <div style={{ marginBottom: 8 }}>
+          <div className="section-label" style={{ color: 'var(--accent2)' }}>
+            Open Market — FVR:
+          </div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {fvr.length === 0
+              ? <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>FVR is empty</span>
+              : fvr.map(c => (
+                <HandCard key={c.id} card={c} selectable
+                  selected={selectedCard === c.id}
+                  onClick={() => { setSelectedCard(c.id); setSelectedPos(null); setDiy(false); }} />
+              ))
+            }
+          </div>
+        </div>
+      )}
+
+      {exclusiveVenue && (
+        <div style={{ marginBottom: 8 }}>
+          <div className="section-label" style={{ color: 'var(--accent2)' }}>
+            Exclusive Venue (Planner Contract):
+          </div>
+          <HandCard card={exclusiveVenue} selectable
+            selected={selectedCard === exclusiveVenue.id}
+            onClick={() => { setSelectedCard(exclusiveVenue.id); setSelectedPos(4); setDiy(false); }} />
+        </div>
+      )}
+
       {selectedCard && (
         <>
-          {/* DIY toggle (vendors only) */}
           {!isVenue && (
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, fontSize: 13 }}>
               <input type="checkbox" checked={diy} onChange={e => setDiy(e.target.checked)} />
@@ -204,9 +248,9 @@ function BookTarget({ pa, player, sendAction }) {
             />
           </div>
 
-          {!diy && card && player.coins < card.cost && (
+          {!diy && card && player.coins < effectiveCost(card) && (
             <div style={{ color: 'var(--accent)', fontSize: 12, marginBottom: 8 }}>
-              Not enough coins (have {player.coins}, need {card.cost})
+              Not enough coins (have {player.coins}, need {effectiveCost(card)})
             </div>
           )}
 
@@ -216,7 +260,7 @@ function BookTarget({ pa, player, sendAction }) {
             disabled={!canBook()}
             onClick={() => sendAction({ type: 'BOOK_CARD', payload: { cardId: selectedCard, position: selectedPos, diy } })}
           >
-            {diy ? 'Book DIY (free)' : `Book for ${card?.cost || 0}¢`}
+            {diy ? 'Book DIY (free)' : `Book for ${effectiveCost(card)}¢`}
           </button>
         </>
       )}
@@ -226,12 +270,16 @@ function BookTarget({ pa, player, sendAction }) {
 
 function PlanEffort({ pa, player, sendAction, deferred }) {
   const [assignments, setAssignments] = useState({});
-  const { gameState } = useGame();
+  const [plannerAssignments, setPlannerAssignments] = useState({});
   const maxEffort = pa.effortAmount;
   const totalAssigned = Object.values(assignments).reduce((a, b) => a + b, 0);
   const remaining = maxEffort - totalAssigned;
+  const plannerPool = !deferred ? (pa.plannerPoolAvailable || 0) : 0;
+  const plannerTotal = Object.values(plannerAssignments).reduce((a, b) => a + b, 0);
+  const plannerRemaining = plannerPool - plannerTotal;
 
-  const TASK_DEFS_MAP = buildTaskDefsMap();
+  const unlocked = pa.unlockedTasks || [];
+  const plannerUnlocked = plannerPool > 0 ? unlocked.filter(id => !TASK_DEFS_MAP[id]?.key) : [];
 
   function assign(taskId, delta) {
     const current = assignments[taskId] || 0;
@@ -244,18 +292,41 @@ function PlanEffort({ pa, player, sendAction, deferred }) {
     setAssignments(a => ({ ...a, [taskId]: newVal }));
   }
 
+  function assignPlanner(taskId, delta) {
+    const current = plannerAssignments[taskId] || 0;
+    const taskDef = TASK_DEFS_MAP[taskId];
+    if (!taskDef) return;
+    const ws = player.taskWorksheet[taskId];
+    if (!ws) return;
+    const playerAssigned = assignments[taskId] || 0;
+    const maxForTask = taskDef.effortRequired - ws.effortApplied - playerAssigned;
+    const newVal = Math.max(0, Math.min(current + delta, maxForTask, plannerRemaining + current));
+    setPlannerAssignments(a => ({ ...a, [taskId]: newVal }));
+  }
+
   function submit() {
     const filtered = Object.fromEntries(Object.entries(assignments).filter(([, v]) => v > 0));
+    const payload = { assignments: filtered };
+    if (plannerPool > 0 && plannerTotal > 0) {
+      payload.plannerAssignments = Object.fromEntries(Object.entries(plannerAssignments).filter(([, v]) => v > 0));
+    }
     sendAction({
       type: deferred ? 'APPLY_DEFERRED_EFFORT' : 'PLAN_EFFORT',
-      payload: { assignments: filtered },
+      payload,
     });
   }
 
-  const unlocked = pa.unlockedTasks || [];
+  const title = deferred
+    ? `Apply ${maxEffort} Effort (from reward)${pa.starredOnly ? ' — ★ Starred Tasks Only' : ''}`
+    : `Plan — Apply ${maxEffort} Effort`;
 
   return (
-    <PanelWrapper title={deferred ? `Apply ${maxEffort} Effort (from reward)` : `Plan — Apply ${maxEffort} Effort`} icon="📝">
+    <PanelWrapper title={title} icon="📝">
+      {deferred && pa.starredOnly && (
+        <div style={{ fontSize: 12, color: 'var(--warn)', marginBottom: 8 }}>
+          This effort may only go to starred (★) tasks.
+        </div>
+      )}
       <div style={{ marginBottom: 8, fontSize: 13, color: 'var(--text-dim)' }}>
         Remaining: <strong style={{ color: remaining > 0 ? 'var(--success)' : 'var(--text-dim)' }}>{remaining}</strong>
       </div>
@@ -289,10 +360,52 @@ function PlanEffort({ pa, player, sendAction, deferred }) {
           );
         })}
       </div>
+
+      {plannerPool > 0 && (
+        <>
+          <div style={{ marginTop: 12, marginBottom: 4, fontSize: 13, color: 'var(--accent2)', fontWeight: 600 }}>
+            Planner Coordination — {plannerRemaining} of {plannerPool} remaining
+          </div>
+          <div style={{ marginBottom: 6, fontSize: 11, color: 'var(--text-dim)' }}>
+            Your planner can help with non-key tasks.
+          </div>
+          <div style={{ maxHeight: 200, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {plannerUnlocked.map(taskId => {
+              const def = TASK_DEFS_MAP[taskId];
+              if (!def) return null;
+              const ws = player.taskWorksheet[taskId];
+              const playerAssigned = assignments[taskId] || 0;
+              const pAssigned = plannerAssignments[taskId] || 0;
+              const maxForTask = def.effortRequired - (ws?.effortApplied || 0) - playerAssigned;
+              return (
+                <div key={taskId} style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '6px 8px', borderRadius: 6, background: 'var(--surface2)',
+                }}>
+                  <div style={{ flex: 1, fontSize: 12 }}>
+                    {def.name}
+                    <span style={{ color: 'var(--text-dim)', marginLeft: 4 }}>
+                      ({ws?.effortApplied || 0}/{def.effortRequired})
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <button className="btn btn-ghost" style={{ padding: '2px 8px' }}
+                      onClick={() => assignPlanner(taskId, -1)} disabled={pAssigned === 0}>−</button>
+                    <span style={{ minWidth: 16, textAlign: 'center', fontWeight: 700 }}>{pAssigned}</span>
+                    <button className="btn btn-ghost" style={{ padding: '2px 8px' }}
+                      onClick={() => assignPlanner(taskId, 1)} disabled={plannerRemaining === 0 || pAssigned >= maxForTask}>+</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+
       <button className="btn btn-primary" style={{ width: '100%', marginTop: 10 }}
-        disabled={totalAssigned === 0}
+        disabled={totalAssigned === 0 && plannerTotal === 0}
         onClick={submit}>
-        Apply {totalAssigned} Effort
+        Apply {totalAssigned} Effort{plannerTotal > 0 ? ` + ${plannerTotal} Planner` : ''}
       </button>
     </PanelWrapper>
   );
@@ -353,8 +466,8 @@ function ExcitementMilestone({ pa, player, sendAction }) {
   const choices = [
     { key: 'coin',        label: 'Gain 1 Coin',         available: true },
     { key: 'vendor_card', label: 'Draw 1 Vendor Card',  available: true },
-    { key: 'venue_card',  label: 'Draw 1 Venue Card',   available: true },
-    { key: 'fvr_card',    label: 'Take from FVR',        available: !!pa.canFvr },
+    { key: 'venue_card',  label: 'Draw 1 Venue Card',   available: !pa.venueDeckEmpty },
+    { key: 'fvr_card',    label: 'Take from FVR',        available: !!pa.canFvr && !pa.fvrEmpty },
   ];
   return (
     <PanelWrapper title={`Excitement Milestone — Position ${pa.position}`} icon="✨">
@@ -397,12 +510,20 @@ function HandDiscard({ pa, player, sendAction }) {
     setSelected(s => s.includes(cardId) ? s.filter(x => x !== cardId) : [...s, cardId]);
   }
 
+  const selectedVenueCount = selected.filter(id => player.hand.find(c => c.id === id)?.type === 'venue').length;
+  const venueConstraintMet = selectedVenueCount >= (pa.mustDiscardVenues || 0);
+  const canSubmit = selected.length === pa.required && venueConstraintMet;
+
   return (
     <PanelWrapper title={`Hand Limit — Discard ${pa.required} Card(s)`} icon="✋">
-      <p style={{ fontSize: 13, color: 'var(--text-dim)', marginBottom: 10 }}>
-        Select {pa.required} card(s) to discard to the FVR.
-        Selected: {selected.length}/{pa.required}
+      <p style={{ fontSize: 13, color: 'var(--text-dim)', marginBottom: 6 }}>
+        Select {pa.required} card(s) to discard to the FVR. Selected: {selected.length}/{pa.required}
       </p>
+      {pa.mustDiscardVenues > 0 && (
+        <p style={{ fontSize: 12, color: venueConstraintMet ? 'var(--text-dim)' : 'var(--warn)', marginBottom: 8 }}>
+          Must include at least {pa.mustDiscardVenues} venue card(s) — {selectedVenueCount} selected
+        </p>
+      )}
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
         {player.hand.map(c => (
           <HandCard key={c.id} card={c} selectable
@@ -411,7 +532,7 @@ function HandDiscard({ pa, player, sendAction }) {
         ))}
       </div>
       <button className="btn btn-warn" style={{ width: '100%' }}
-        disabled={selected.length !== pa.required}
+        disabled={!canSubmit}
         onClick={() => sendAction({ type: 'HAND_DISCARD', payload: { cardIds: selected } })}>
         Discard {selected.length} Card(s)
       </button>
@@ -463,6 +584,12 @@ export function HandCard({ card, selectable, selected, onClick }) {
       <div style={{ display: 'flex', gap: 3, marginTop: 3 }}>
         <span>{card.cost}¢</span>
         {(card.excitement > 0) && <span style={{ color: 'var(--accent2)' }}>+{card.excitement}✨</span>}
+        {card.wild > 0 && <span style={{ color: '#aaa' }}>★</span>}
+      </div>
+      <div style={{ display: 'flex', gap: 2, flexWrap: 'wrap', marginTop: 3 }}>
+        {Object.entries(card.elements || {}).map(([el, v]) =>
+          v > 0 ? <div key={el} style={{ width: 7, height: 7, borderRadius: '50%', background: ELEMENT_COLORS[el] }} /> : null
+        )}
       </div>
     </div>
   );
@@ -482,36 +609,3 @@ function describeEffect(effect) {
   }
 }
 
-function buildTaskDefsMap() {
-  const defs = [
-    { id: 'task_marriage_license',   name: 'Apply for Marriage License',    effortRequired: 1, key: false },
-    { id: 'task_hotel_rooms',        name: 'Block Out Guest Hotel Rooms',   effortRequired: 1, key: false },
-    { id: 'task_gift_registry',      name: 'Create Gift Registry',          effortRequired: 1, key: false },
-    { id: 'task_website',            name: 'Launch Wedding Website',        effortRequired: 1, key: false },
-    { id: 'task_rings',              name: 'Order Wedding Rings',           effortRequired: 2, key: false },
-    { id: 'task_bridal_shower',      name: 'Plan Bridal Shower',            effortRequired: 2, key: false },
-    { id: 'task_honeymoon',          name: 'Plan Honeymoon',                effortRequired: 2, key: false },
-    { id: 'task_vows',               name: 'Write Wedding Vows',            effortRequired: 2, key: false },
-    { id: 'task_wedding_bags',       name: 'Assemble Guest Wedding Bags',   effortRequired: 2, key: false },
-    { id: 'task_guest_arrivals',     name: 'Coordinate Guest Arrivals',     effortRequired: 2, key: false },
-    { id: 'task_playlist',           name: 'Create Playlist',               effortRequired: 2, key: false },
-    { id: 'task_centerpieces',       name: 'Design Centerpieces',           effortRequired: 2, key: false },
-    { id: 'task_ceremony_structure', name: 'Plan Ceremony Structure',       effortRequired: 2, key: false },
-    { id: 'task_photoshoot',         name: 'Schedule Engagement Photoshoot', effortRequired: 2, key: false },
-    { id: 'task_fitting',            name: 'Schedule Fitting Session',      effortRequired: 2, key: false },
-    { id: 'task_venue_setup',        name: 'Venue Setup / Teardown',        effortRequired: 2, key: false },
-    { id: 'task_wedding_party',      name: 'Choose Wedding Party',          effortRequired: 3, key: true },
-    { id: 'task_post_brunch',        name: 'Host Post-Wedding Brunch',      effortRequired: 1, key: false },
-    { id: 'task_rehearsal_dinner',   name: 'Host Rehearsal Dinner',         effortRequired: 1, key: false },
-    { id: 'task_party_gifts',        name: 'Purchase Wedding Party Gifts',  effortRequired: 1, key: false },
-    { id: 'task_tastings',           name: 'Conduct Vendor Tastings',       effortRequired: 3, key: true },
-    { id: 'task_signature_drink',    name: 'Design Signature Drink',        effortRequired: 1, key: false },
-    { id: 'task_menu',               name: 'Finalize Menu Selections',      effortRequired: 2, key: false },
-    { id: 'task_cake',               name: 'Order Wedding Cake',            effortRequired: 2, key: false },
-    { id: 'task_guest_list',         name: 'Create Guest List',             effortRequired: 4, key: true },
-    { id: 'task_save_dates',         name: 'Send Save-the-Dates',           effortRequired: 2, key: false },
-    { id: 'task_invitations',        name: 'Mail Wedding Invitations',      effortRequired: 2, key: false },
-    { id: 'task_seating_chart',      name: 'Create Seating Chart',         effortRequired: 2, key: false },
-  ];
-  return Object.fromEntries(defs.map(d => [d.id, d]));
-}

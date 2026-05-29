@@ -118,6 +118,8 @@ export default function Scoring() {
                     <ScoreStat key={type} label={`${type} goal`} value={`+${gifts}`} />
                   ))}
                   {breakdown.balanced > 0 && <ScoreStat label="Balanced Bonus" value={`+${breakdown.balanced}`} />}
+                  {breakdown.raceAward > 0 && <ScoreStat label="Race Award" value={`+${breakdown.raceAward}`} />}
+                  {breakdown.endgameAward > 0 && <ScoreStat label="Endgame Award" value={`+${breakdown.endgameAward}`} />}
                   <ScoreStat label="Tasks" value={`${p.completedTasksCount} completed`} />
                   <ScoreStat label="DIY" value={p.diyCount} />
                 </div>

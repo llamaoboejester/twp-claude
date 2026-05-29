@@ -89,8 +89,7 @@ io.on('connection', socket => {
     const engine = games.get(code);
     if (!engine) return cb({ success: false, error: 'Game not found' });
 
-    const state = engine.getState();
-    if (state.phase !== 'lobby') return cb({ success: false, error: 'Game already started' });
+    if (engine.getPhase() !== 'lobby') return cb({ success: false, error: 'Game already started' });
 
     const playerId = `player_${socket.id}`;
     const result = engine.addPlayer(playerId, playerName.trim(), socket.id);
@@ -130,7 +129,7 @@ io.on('connection', socket => {
     const result = engine.handleAction(info.playerId, action);
     if (cb) cb(result);
 
-    broadcastState(info.gameCode);
+    if (result.success !== false) broadcastState(info.gameCode);
   });
 
   // ── Reconnect ──────────────────────────────────────────────────────────────
@@ -151,7 +150,7 @@ io.on('connection', socket => {
     });
 
     socket.join(code);
-    cb({ success: true, gameCode: code, playerId });
+    cb({ success: true, gameCode: code, playerId, playerName: state.players[playerId].name });
     socket.emit('game_state', engine.getStateForPlayer(playerId));
   });
 
@@ -176,5 +175,5 @@ io.on('connection', socket => {
 });
 
 server.listen(PORT, () => {
-  console.log(`The Wedding Planner server running on port ${PORT}`);
+  console.log(`The Wedding Planner server running on port ${PORT} — started ${new Date().toLocaleTimeString()}`);
 });
