@@ -1,0 +1,210 @@
+/* The Wedding Planner — Press design system tokens
+   Direction: Press (committed). Bold letterpress identity layered over a
+   calm working layer for dense state surfaces.
+
+   ALL color in oklch so the palette stays perceptually coherent.
+*/
+
+:root {
+  /* ——— PAPER (the canvas everything sits on) ——— */
+  --paper:        oklch(96.5% 0.022 88);    /* cream — the only "tan", used as ground stock */
+  --paper-soft:   oklch(98%   0.014 88);    /* lighter cream for raised surfaces */
+  --paper-deep:   oklch(92%   0.030 86);    /* deeper cream for inset wells */
+  --paper-shade:  oklch(88%   0.035 82);    /* shaded cream for dividers / step backs */
+
+  /* ——— INK (text, rules, marks) ——— */
+  --ink:          oklch(18% 0.018 35);      /* primary text + heavy rules */
+  --ink-2:        oklch(28% 0.020 35);      /* secondary text */
+  --ink-3:        oklch(42% 0.018 35);      /* tertiary / annotation */
+  --ink-4:        oklch(58% 0.018 35);      /* faint / disabled */
+  --ink-line:     oklch(70% 0.025 65 / 0.5); /* hairline divider */
+  --ink-line-2:   oklch(60% 0.030 65 / 0.65);
+
+  /* ——— SIGNATURE ACCENT (Press's voice) ——— */
+  --accent:       oklch(58% 0.220 28);      /* vermilion — active state, cursor, callouts */
+  --accent-deep:  oklch(48% 0.210 28);      /* hover/pressed */
+  --accent-soft:  oklch(92% 0.060 28);      /* wash for selected backgrounds */
+
+  /* ——— THEME ELEMENT PIGMENTS (the 5 + Wild) ——— */
+  /* Tuned to match user's existing icon palette but a touch more vivid,
+     so they sing in a print-poster context. */
+  --el-whimsy:    oklch(64% 0.170 12);      /* pink */
+  --el-edge:      oklch(48% 0.155 305);     /* plum */
+  --el-nature:    oklch(48% 0.105 148);     /* moss */
+  --el-tradition: oklch(40% 0.155 25);      /* wine */
+  --el-elegance:  oklch(70% 0.135 82);      /* brass */
+  --el-wild:      oklch(35% 0.020 35);      /* graphite — "any of the above" */
+
+  /* Element fills for backgrounds */
+  --el-whimsy-fill:    oklch(64% 0.170 12);
+  --el-edge-fill:      oklch(48% 0.155 305);
+  --el-nature-fill:    oklch(48% 0.105 148);
+  --el-tradition-fill: oklch(40% 0.155 25);
+  --el-elegance-fill:  oklch(70% 0.135 82);
+
+  /* Element washes (very faint backgrounds, hover states) */
+  --el-whimsy-wash:    oklch(94% 0.045 12);
+  --el-edge-wash:      oklch(93% 0.038 305);
+  --el-nature-wash:    oklch(94% 0.032 148);
+  --el-tradition-wash: oklch(93% 0.045 25);
+  --el-elegance-wash:  oklch(95% 0.050 82);
+
+  /* ——— FUNCTIONAL TOKENS ——— */
+  --coin:         oklch(72% 0.140 82);      /* coin gold — reads against ink */
+  --coin-deep:    oklch(58% 0.125 78);
+  --gift:         oklch(55% 0.180 22);      /* gift = small red, not the vermilion */
+  --excite:       oklch(58% 0.220 28);      /* excitement uses the signature accent */
+  --positive:     oklch(48% 0.105 148);     /* uses Nature green */
+  --warning:      oklch(60% 0.165 55);
+
+  /* ——— CATEGORY PALETTE ("stamp ink" register) ———
+     Deliberately positioned at lower chroma (~0.06–0.10) than theme element
+     pigments (~0.13–0.17) so the eye never confuses a category color with
+     a theme element. Even where hues sit nearby (e.g. food-drink near
+     tradition wine), the saturation gap separates them visually:
+       theme element = loud / saturated
+       category      = quiet / inky
+     Used on DIY card backs, the bottom cap of vendor cards, and deck-top
+     indicators. Never on element trackers or theme cards. */
+  --cat-photography:          oklch(40% 0.10 260);    /* cobalt */
+  --cat-ceremony:             oklch(43% 0.080 65);    /* sepia */
+  --cat-stationery:           oklch(48% 0.035 230);   /* slate */
+  --cat-food-drink:           oklch(40% 0.085 35);    /* brick */
+  --cat-favors-gifts:         oklch(42% 0.075 355);   /* berry */
+  --cat-flowers-decorations:  oklch(43% 0.075 195);   /* teal */
+  --cat-attire-accessories:   oklch(40% 0.060 295);   /* mauve */
+  --cat-transportation:       oklch(32% 0.075 245);   /* navy */
+  --cat-entertainment:        oklch(40% 0.090 325);   /* aubergine */
+
+  /* ——— RULES ——— */
+  --rule-w:       2px;                      /* default Press rule weight */
+  --rule-w-hair:  1px;
+  --rule-w-bold:  3px;
+
+  /* ——— SHADOWS (Press uses HARD shadows, not soft) ——— */
+  --shadow-press-sm: 3px 3px 0 var(--ink);
+  --shadow-press-md: 6px 6px 0 var(--ink);
+  --shadow-press-lg: 10px 10px 0 var(--ink);
+  --shadow-card-lift: 0 2px 0 oklch(85% 0.025 82), 0 0 0 1px var(--ink-line-2);
+  --shadow-soft: 0 16px 32px -20px oklch(20% 0.04 35 / 0.35);
+
+  /* ——— TYPE ——— */
+  --font-display: 'Antonio', 'Oswald', 'Bebas Neue', ui-sans-serif, system-ui, sans-serif;
+  --font-serif:   'Newsreader', 'Source Serif 4', Georgia, serif;
+  --font-sans:    'Geist', ui-sans-serif, system-ui, sans-serif;
+  --font-mono:    'JetBrains Mono', ui-monospace, 'SFMono-Regular', monospace;
+
+  /* ——— RHYTHM ——— */
+  --gut-xs: 4px;
+  --gut-sm: 8px;
+  --gut-md: 16px;
+  --gut-lg: 24px;
+  --gut-xl: 40px;
+  --gut-2xl: 64px;
+
+  /* ——— RADII ——— */
+  /* Press is mostly square. Reserve small radius for soft chips only. */
+  --r-0: 0;
+  --r-1: 2px;
+  --r-2: 4px;
+  --r-pill: 999px;
+}
+
+/* ——— BASE TYPE ROLES ——— */
+
+.t-display {
+  font-family: var(--font-display);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: -0.005em;
+  line-height: 0.9;
+  color: var(--ink);
+}
+.t-serif {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-style: italic;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.t-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.t-eyebrow-accent { color: var(--accent); }
+.t-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.t-meta {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+.t-num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ——— RULES ——— */
+
+.rule       { border: 0; height: 0; border-top: var(--rule-w) solid var(--ink); }
+.rule-hair  { border: 0; height: 0; border-top: 1px solid var(--ink-line-2); }
+.rule-bold  { border: 0; height: 0; border-top: var(--rule-w-bold) solid var(--ink); }
+.rule-double {
+  border: 0;
+  height: 6px;
+  border-top: 1px solid var(--ink);
+  border-bottom: 1px solid var(--ink);
+}
+
+/* ——— UTILITY ——— */
+
+.surface-paper { background: var(--paper); color: var(--ink); }
+.surface-soft  { background: var(--paper-soft); color: var(--ink); }
+.surface-deep  { background: var(--paper-deep); color: var(--ink); }
+.surface-shade { background: var(--paper-shade); color: var(--ink); }
+.surface-ink   { background: var(--ink); color: var(--paper); }
+
+/* Hard-press wrapper — anything inside is "stamped" onto the cream */
+.press-frame {
+  border: var(--rule-w) solid var(--ink);
+  background: var(--paper-soft);
+  box-shadow: var(--shadow-press-sm);
+}
+.press-frame-lift { box-shadow: var(--shadow-press-md); }
+
+/* Coin chip — the visual token for currency */
+.coin-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ink);
+  color: var(--coin);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  width: 22px;
+  height: 22px;
+  line-height: 1;
+  font-size: 14px;
+  border-radius: 50%;
+}
+
+/* Gift chip */
+.gift-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--gift);
+}

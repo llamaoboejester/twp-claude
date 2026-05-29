@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>The Wedding Planner — Design System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300..700;1,6..72,300..700&family=Geist:wght@300..700&family=JetBrains+Mono:wght@400;500;700&family=Antonio:wght@400..700&display=swap" />
+<link rel="stylesheet" href="tokens.css" />
+<style>
+  body { background: #f7eede; }
+  /* Section commentary blocks */
+  .commentary {
+    background: var(--paper-soft);
+    border: 2px solid var(--ink);
+    box-shadow: 6px 6px 0 var(--ink);
+    padding: 24px 28px;
+    max-width: 520px;
+  }
+  .commentary .kicker {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 10px;
+  }
+  .commentary h3 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 32px;
+    letter-spacing: -0.005em;
+    text-transform: uppercase;
+    line-height: 1;
+    margin: 0 0 14px;
+    color: var(--ink);
+  }
+  .commentary p {
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--ink-2);
+    margin: 0 0 10px;
+  }
+  .commentary p:last-child { margin-bottom: 0; }
+  .commentary ul {
+    font-family: var(--font-sans);
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--ink-2);
+    padding-left: 18px;
+    margin: 8px 0;
+  }
+  .commentary em { font-family: var(--font-serif); font-style: italic; color: var(--ink); }
+  .commentary strong { color: var(--ink); font-weight: 600; }
+
+  .row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 24px; }
+  .col { display: flex; flex-direction: column; gap: 16px; }
+  .grid-cards { display: flex; flex-wrap: wrap; gap: 20px; }
+
+  /* Hand-written caption under a piece */
+  .caption {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin-top: 8px;
+  }
+</style>
+</head>
+<body>
+
+<template id="__bundler_thumbnail">
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <rect width="100" height="100" fill="#1c140e"/>
+  <rect x="28" y="28" width="44" height="44" rx="2" fill="#f4ead7"/>
+  <path d="M50 35 l3.8 7.7 8.5 1.2 -6.2 6 1.5 8.5 -7.6 -4 -7.6 4 1.5 -8.5 -6.2 -6 8.5 -1.2 z" fill="#b5462f"/>
+</svg>
+</template>
+
+<div id="root"></div>
+
+<a href="Prototype.html" style="
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 1000;
+  padding: 10px 18px;
+  background: var(--accent);
+  color: var(--paper);
+  text-decoration: none;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  border: 2px solid var(--ink);
+  box-shadow: 4px 4px 0 var(--ink);
+">→ Interactive Prototype</a>
+
+<script src="asset-inline.js"></script>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="icons.jsx"></script>
+<script type="text/babel" src="cards.jsx"></script>
+<script type="text/babel" src="player-board.jsx"></script>
+<script type="text/babel" src="tasks.jsx"></script>
+<script type="text/babel" src="central-board.jsx"></script>
+<script type="text/babel" src="fixtures.jsx"></script>
+<script type="text/babel" src="screens.jsx"></script>
+<script type="text/babel" src="flows.jsx"></script>
+
+<script type="text/babel">
+const { useState } = React;
+const root = ReactDOM.createRoot(document.getElementById("root"));
+
+function App() {
+  return (
+    <DesignCanvas>
+
+      {/* ——————————— FOUNDATION ——————————— */}
+      <DCSection id="foundation" title="Foundation" subtitle="Type, color, and the elemental system.">
+        <DCArtboard id="found-1" label="01 · Identity statement" width={1200} height={720}>
+          <div style={{
+            background: "var(--paper)",
+            width: "100%", height: "100%",
+            padding: "56px 64px",
+            display: "grid",
+            gridTemplateColumns: "1.1fr 1fr",
+            gap: 64,
+            alignItems: "start",
+          }}>
+            <div>
+              <div className="t-eyebrow t-eyebrow-accent" style={{ marginBottom: 28 }}>
+                The Wedding Planner / Identity
+              </div>
+              <h1 style={{
+                fontFamily: "var(--font-display)",
+                fontWeight: 700,
+                fontSize: 148,
+                lineHeight: 0.85,
+                margin: 0,
+                letterSpacing: "-0.01em",
+                textTransform: "uppercase",
+                color: "var(--ink)",
+              }}>
+                The<br/>Wedding<br/><span style={{ color: "var(--accent)" }}>Planner.</span>
+              </h1>
+              <p style={{
+                fontFamily: "var(--font-serif)",
+                fontStyle: "italic",
+                fontWeight: 400,
+                fontSize: 24,
+                lineHeight: 1.3,
+                color: "var(--ink-2)",
+                margin: "32px 0 0",
+                maxWidth: 460,
+              }}>
+                A printmaker's poster, a wedding magazine, and a euro game UI walked into a bar. Bold ink, structural rules, italic romance, vermilion voltage.
+              </p>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+              <div>
+                <div className="t-eyebrow" style={{ marginBottom: 12 }}>Display · Antonio Bold</div>
+                <div style={{
+                  fontFamily: "var(--font-display)",
+                  fontWeight: 700,
+                  fontSize: 48,
+                  lineHeight: 0.9,
+                  color: "var(--ink)",
+                  textTransform: "uppercase",
+                }}>
+                  ABCDEFG<br/>1234567
+                </div>
+              </div>
+              <div>
+                <div className="t-eyebrow" style={{ marginBottom: 12 }}>Serif · Newsreader Italic</div>
+                <div style={{
+                  fontFamily: "var(--font-serif)",
+                  fontStyle: "italic",
+                  fontSize: 48,
+                  lineHeight: 1,
+                  color: "var(--ink)",
+                }}>
+                  A Bohemian<br/>Garden Affair
+                </div>
+              </div>
+              <div>
+                <div className="t-eyebrow" style={{ marginBottom: 12 }}>Mono · JetBrains 500</div>
+                <div style={{
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 14,
+                  letterSpacing: "0.16em",
+                  textTransform: "uppercase",
+                  color: "var(--ink-2)",
+                }}>
+                  MONTH · 07 / 12 — Q3<br/>EXCITEMENT · 18<br/>COINS · 7 · GIFTS · 12
+                </div>
+              </div>
+            </div>
+          </div>
+        </DCArtboard>
+
+        <DCArtboard id="found-2" label="02 · Palette: theme elements & categories" width={1200} height={760}>
+          <div style={{
+            background: "var(--paper)",
+            width: "100%", height: "100%",
+            padding: "40px 48px",
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: 56,
+            alignItems: "start",
+          }}>
+            <div>
+              <div className="t-eyebrow t-eyebrow-accent" style={{ marginBottom: 14 }}>Theme element pigments</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 0, border: "2px solid var(--ink)" }}>
+                {["whimsy","edge","nature","tradition","elegance"].map((el, i) => (
+                  <div key={el} style={{
+                    aspectRatio: "0.85",
+                    background: `var(--el-${el})`,
+                    borderRight: i < 4 ? "2px solid var(--ink)" : 0,
+                    padding: 14,
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "space-between",
+                    color: el === "elegance" ? "var(--ink)" : "var(--paper)",
+                  }}>
+                    <div>
+                      <ElementIcon element={el} size={36} mode="stamp" style={{ background: "transparent" }} />
+                    </div>
+                    <div>
+                      <div style={{
+                        fontFamily: "var(--font-mono)",
+                        fontSize: 9, letterSpacing: "0.16em", textTransform: "uppercase", opacity: 0.8
+                      }}>0{i+1}</div>
+                      <div style={{
+                        fontFamily: "var(--font-display)",
+                        fontWeight: 700, fontSize: 22, lineHeight: 1, textTransform: "uppercase"
+                      }}>{el}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="caption" style={{ marginTop: 16 }}>
+                Five elements. Solid silhouette on color tile (matches the existing icon set). Wild = asterisk.
+              </div>
+
+              <div style={{ marginTop: 28, display: "flex", gap: 12, alignItems: "center" }}>
+                <ElementIcon element="wild" size={42} mode="stamp" />
+                <div>
+                  <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 18, color: "var(--ink)" }}>WILD</div>
+                  <div style={{ fontFamily: "var(--font-sans)", fontSize: 12, color: "var(--ink-2)", lineHeight: 1.3 }}>Choose any element to advance by 1.</div>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div className="t-eyebrow t-eyebrow-accent" style={{ marginBottom: 14 }}>Category palette · "Stamp ink"</div>
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(3, 1fr)",
+                gap: 6,
+                border: "2px solid var(--ink)",
+                padding: 6,
+                background: "var(--paper-soft)",
+              }}>
+                {[
+                  "Photography", "Ceremony", "Stationery",
+                  "Food & Drink", "Favors & Gifts", "Flowers & Decorations",
+                  "Attire & Accessories", "Transportation", "Entertainment",
+                ].map(cat => (
+                  <div key={cat} style={{
+                    aspectRatio: "1",
+                    background: CATEGORY_TONE[cat],
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: 8,
+                    gap: 6,
+                  }}>
+                    <img src={`assets/icons/category/${CATEGORY_SLUG[cat]}.png`} style={{ width: 36, height: 36, objectFit: "contain" }} alt="" />
+                    <div style={{
+                      fontFamily: "var(--font-display)",
+                      fontWeight: 700,
+                      fontSize: 9,
+                      letterSpacing: "0.10em",
+                      textTransform: "uppercase",
+                      color: "var(--paper)",
+                      textAlign: "center",
+                      lineHeight: 1,
+                    }}>{cat}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="caption" style={{ marginTop: 12, maxWidth: 360 }}>
+                Categories live in a deliberately quieter register than theme elements — lower chroma, deeper lightness. So <em style={{ fontFamily: "var(--font-serif)", fontStyle: "italic", color: "var(--ink)" }}>theme = loud, category = ink</em>, and the eye never confuses them.
+              </div>
+            </div>
+          </div>
+        </DCArtboard>
+
+        <DCArtboard id="found-3" label="03 · Paper, ink, accents" width={1200} height={260}>
+          <div style={{ width: "100%", height: "100%", padding: 40, background: "var(--paper)" }}>
+            <div className="t-eyebrow t-eyebrow-accent" style={{ marginBottom: 14 }}>Paper, ink, accent, currency</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 12 }}>
+              {[
+                ["Paper",       "var(--paper)",      "Cream — ground stock"],
+                ["Paper deep",  "var(--paper-deep)", "Inset wells"],
+                ["Ink",         "var(--ink)",        "Text, rules, frames"],
+                ["Accent",      "var(--accent)",     "Vermilion — active"],
+                ["Coin",        "var(--coin)",       "Currency token"],
+                ["Gift",        "var(--gift)",       "Scoring units"],
+              ].map(([label, color, note]) => (
+                <div key={label} style={{ border: "1.5px solid var(--ink)" }}>
+                  <div style={{ background: color, height: 56, borderBottom: "1.5px solid var(--ink)" }}></div>
+                  <div style={{ padding: "8px 10px" }}>
+                    <div style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--ink-3)" }}>{label}</div>
+                    <div style={{ fontFamily: "var(--font-sans)", fontSize: 11, lineHeight: 1.3, color: "var(--ink-2)" }}>{note}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </DCArtboard>
+      </DCSection>
+
+      {/* ——————————— CARDS ——————————— */}
+      <DCSection id="cards" title="Cards" subtitle="Vendor card density approaches and the full card library.">
+        <DCArtboard id="vendor-density" label="Vendor cards — two density approaches" width={1200} height={540}>
+          <div style={{ width: "100%", height: "100%", padding: 40, background: "var(--paper)" }}>
+            <div className="row" style={{ gap: 48 }}>
+              <div className="col">
+                <div className="t-eyebrow t-eyebrow-accent">A · Photo well</div>
+                <VendorCardPhoto />
+                <div className="caption">Physical-card feel. Best on the main board.</div>
+              </div>
+              <div className="col">
+                <div className="t-eyebrow t-eyebrow-accent">B · Stat line</div>
+                <VendorCardStat />
+                <div className="caption">Dense; reads well in hand row, drafts, lists.</div>
+              </div>
+              <div className="commentary">
+                <div className="kicker">My recommendation</div>
+                <h3>Use both, in context.</h3>
+                <p><strong>Photo cards</strong> live in the booked grid, the Featured Vendor Row, modals, and "card reveal" moments where the card is the focus. They earn their space.</p>
+                <p><strong>Stat cards</strong> live in the hand strip, opponent-grid summaries, and any list where you need to scan 5+ cards at once. They're functional, not theatrical.</p>
+                <p>Both share the same anatomy — category cap, name in italic serif, theme pips, excitement in vermilion, cost as a struck black tile — so they read as the same family.</p>
+              </div>
+            </div>
+          </div>
+        </DCArtboard>
+
+        <DCArtboard id="cards-categories" label="Vendor cards — all 9 categories" width={1200} height={760}>
+          <div style={{ width: "100%", height: "100%", padding: 32, background: "var(--paper)" }}>
+            <div className="grid-cards">
+              <VendorCardPhoto category="Photography" name="A Quiet Lens Studio" cost={3} excitement={2} elements={["whimsy","elegance"]} number="04" />
+              <VendorCardPhoto category="Flowers & Decorations" name="Wildflower Mercantile" cost={2} excitement={2} elements={["nature","whimsy"]} number="07" whenBooked="Apply 1 effort to Design Centerpieces." />
+              <VendorCardPhoto category="Entertainment" name="Velvet Hour Quartet" cost={3} excitement={3} elements={["edge","elegance"]} number="02" whenBooked="Gain 2 excitement next time you book." />
+              <VendorCardPhoto category="Stationery" name="Letterpress & Co." cost={2} excitement={1} elements={["tradition"]} number="06" whenBooked="Draw 1 venue card." />
+              <VendorCardPhoto category="Attire & Accessories" name="The Heirloom Atelier" cost={3} excitement={2} elements={["elegance","tradition"]} number="01" weather={false} />
+              <VendorCardPhoto category="Food & Drink" name="Hearthsmoke Catering" cost={3} excitement={3} elements={["tradition","nature"]} number="09" />
+              <VendorCardPhoto category="Ceremony" name="Officiant Marlowe Hart" cost={1} excitement={1} elements={["tradition"]} number="03" />
+              <VendorCardPhoto category="Favors & Gifts" name="Honeycomb Sundries" cost={1} excitement={1} elements={["whimsy"]} number="05" />
+              <VendorCardPhoto category="Transportation" name="Marigold Motor Co." cost={2} excitement={2} elements={["edge"]} number="08" weather />
+            </div>
+          </div>
+        </DCArtboard>
+
+        <DCArtboard id="cards-diy-backs" label="DIY backs — face-down public identity (all 9 categories)" width={1200} height={760}>
+          <div style={{ width: "100%", height: "100%", padding: 32, background: "var(--paper)" }}>
+            <div className="t-eyebrow t-eyebrow-accent" style={{ marginBottom: 18 }}>
+              Face-down public cards · category color is functional public information
+            </div>
+            <div className="grid-cards">
+              {["Photography","Ceremony","Stationery","Food & Drink","Favors & Gifts","Flowers & Decorations","Attire & Accessories","Transportation","Entertainment"].map(c => (
+                <DIYBack key={c} category={c} />
+              ))}
+            </div>
+          </div>
+        </DCArtboard>
+
+        <DCArtboard id="cards-other" label="Venues, moments, awards, themes" width={1200} height={650}>
+          <div style={{ width: "100%", height: "100%", padding: 32, background: "var(--paper)" }}>
+            <div className="grid-cards">
+              <div className="col">
+                <div className="t-eyebrow t-eyebrow-accent">Venue · center-only</div>
+                <VenueCard />
+              </div>
+              <div className="col">
+                <div className="t-eyebrow t-eyebrow-accent">Moment · scoring pattern</div>
+                <MomentCard name="The Aisle" pattern={[0,1,0,0,1,0,0,1,0]} first={3} others={1} difficulty="Easy" />
+              </div>
+              <div className="col">
+                <div className="t-eyebrow t-eyebrow-accent">Moment · harder</div>
+                <MomentCard name="The Spark" pattern={[1,0,1,0,1,0,1,0,1]} first={5} others={2} difficulty="Medium" />
+              </div>
+              <div className="col">
+                <div className="t-eyebrow t-eyebrow-accent">Race award</div>
+                <AwardCard kind="Race" name="First Spark" condition="First player to reach 12 excitement." value={7} />
+              </div>
+              <div className="col">
+                <div className="t-eyebrow t-eyebrow-accent">Endgame award</div>
+                <AwardCard kind="Endgame" name="Most Well-Rounded" condition="Most different vendor categories among booked vendors (DIY included)." value={5} />
+              </div>
+              <div className="col">
+                <div className="t-eyebrow t-eyebrow-accent">Theme card</div>
+                <ThemeCard name="Bohemian" elements={["nature","whimsy"]} />
+              </div>
+            </div>
+          </div>
+        </DCArtboard>
+
+        <DCArtboard id="cards-helpers" label="Helpers (Money / Effort / Research) + DIY back + deck back" width={1200} height={520}>
+          <div style={{ width: "100%", height: "100%", padding: 32, background: "var(--paper)" }}>
+            <div className="grid-cards">
+              <div className="col">
+                <div className="t-eyebrow t-eyebrow-accent">Helper · Money</div>
+                <HelperCard name="Aunt Margaret" type="Money" offer="Receive 4 coins now." />
+              </div>
+              <div className="col">
+                <div className="t-eyebrow t-eyebrow-accent">Helper · Effort, face-up</div>
+                <HelperCard name="Best Friend" type="Effort" offer="Apply 2 effort to a starred task now. After Month 9, must apply 1 more effort to any starred task — or lose 3 gifts at endgame." commitment="Apply 1 more effort to a starred task after Month 9." />
+              </div>
+              <div className="col">
+                <div className="t-eyebrow t-eyebrow-accent">Helper · Research, face-down</div>
+                <HelperCard type="Research" faceDown />
+              </div>
+              <div className="col">
+                <div className="t-eyebrow t-eyebrow-accent">DIY booking · face-down public</div>
+                <DIYBack category="Entertainment" />
+              </div>
+              <div className="col">
+                <div className="t-eyebrow t-eyebrow-accent">Vendor deck top · category visible</div>
+                <VendorDeckTop category="Food & Drink" />
+              </div>
+            </div>
+          </div>
+        </DCArtboard>
+      </DCSection>
+
+      {/* ——————————— BOARDS ——————————— */}
+      <DCSection id="boards" title="Boards" subtitle="The player board pieces and the shared central board.">
+        <DCArtboard id="board-grid" label="Wedding Grid — empty, partial, full" width={1200} height={760}>
+          <div style={{ width: "100%", height: "100%", padding: 40, background: "var(--paper)" }}>
+            <div className="row" style={{ gap: 32 }}>
+              <div className="col">
+                <div className="t-eyebrow t-eyebrow-accent">Empty · bonus actions visible</div>
+                <WeddingGrid cells={Array(9).fill(null)} cellSize={130} />
+                <div className="caption">Each non-center cell shows the bonus action you'll trigger when you book there. Center is venue-only.</div>
+              </div>
+              <div className="col">
+                <div className="t-eyebrow t-eyebrow-accent">Mid-game · 3 booked</div>
+                <WeddingGrid cells={SAMPLE_ALEX_STATE.grid} cellSize={130} />
+                <div className="caption">DIY backs read at full size as colored category tiles.</div>
+              </div>
+            </div>
+          </div>
+        </DCArtboard>
+
+        <DCArtboard id="board-trackers" label="Theme element & excitement trackers" width={1200} height={520}>
+          <div style={{ width: "100%", height: "100%", padding: 40, background: "var(--paper)" }}>
+            <div className="row" style={{ gap: 32, alignItems: "flex-start" }}>
+              <ThemeTrackerStack positions={SAMPLE_ALEX_STATE.themePositions} width={420} />
+              <div className="col" style={{ flex: 1 }}>
+                <ExcitementTrack position={SAMPLE_ALEX_STATE.excitement} width={520} />
+                <div className="commentary" style={{ maxWidth: 520, marginTop: 8 }}>
+                  <div className="kicker">Trackers</div>
+                  <h3>State as scoreboards.</h3>
+                  <p>Each element track shows 0–8 with milestones at <strong>2, 5, 8</strong>. The position marker is a thick ink frame on its current cell. Excitement runs 0–30 with milestones at <strong>5, 15, 25</strong>.</p>
+                  <p>Numbers use mono so the digits never jitter as state ticks up.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </DCArtboard>
+
+        <DCArtboard id="board-tasks" label="Task worksheet" width={1200} height={1280}>
+          <div style={{ width: "100%", height: "100%", padding: 40, background: "var(--paper)" }}>
+            <div className="row" style={{ gap: 32, alignItems: "flex-start" }}>
+              <TaskWorksheet taskStatus={SAMPLE_ALEX_STATE.taskStatus} completedCount={SAMPLE_ALEX_STATE.completedTasks} width={520} />
+              <div className="commentary" style={{ maxWidth: 440 }}>
+                <div className="kicker">Worksheet</div>
+                <h3>One scrollable sheet.</h3>
+                <p>Four groups: <em>Getting Started</em>, <em>Making It Yours</em>, <em>Putting It Together</em>, <em>Locking It In</em>. Each row shows name · effort boxes · gift reward.</p>
+                <p><strong>Locked tasks</strong> show a lock icon and the unlock condition inline. <strong>Key tasks</strong> get a vermilion star.</p>
+                <p>Top: the <strong>Completed Tasks Tracker</strong> (0–20) with milestone callouts inline. Filled boxes turn ink, current position marked with a vermilion edge.</p>
+                <p>Effort marks read like a hand-drawn worksheet — squares you check off, not progress bars.</p>
+              </div>
+            </div>
+          </div>
+        </DCArtboard>
+
+        <DCArtboard id="board-vision-helpers" label="Vision board + helper slots + action dock + player chrome" width={1200} height={900}>
+          <div style={{ width: "100%", height: "100%", padding: 40, background: "var(--paper)", display: "grid", gap: 24 }}>
+            <PlayerChrome name="Alex" isYou isActive coins={7} gifts={11} isFirstPlayer />
+            <PlayerChrome name="Sam" isYou={false} isActive={false} coins={5} gifts={9} />
+            <div className="row" style={{ gap: 24, alignItems: "flex-start" }}>
+              <VisionBoard theme={SAMPLE_ALEX_STATE.theme} goals={SAMPLE_ALEX_STATE.goals} width={420} />
+              <HelperSlots slots={SAMPLE_ALEX_STATE.helpers} width={460} />
+            </div>
+            <ActionDock meepleAt="Vision" available={["Research","Book","Plan","Help"]} active={null} />
+          </div>
+        </DCArtboard>
+
+        <DCArtboard id="board-central" label="Central board pieces — FVR, moments, awards, help decks, timeline" width={1200} height={1400}>
+          <div style={{ width: "100%", height: "100%", padding: 40, background: "var(--paper)", display: "grid", gap: 24 }}>
+            <MonthTimeline currentMonth={6} width={1120} />
+            <FVR cards={SAMPLE_FVR} width={1120} cardW={150} />
+            <div className="row" style={{ gap: 24, alignItems: "flex-start" }}>
+              <MomentsRow moments={SAMPLE_MOMENTS} completedBy={{ 0: ["Alex"] }} width={540} />
+              <AwardsRow race={SAMPLE_AWARDS.race} endgame={SAMPLE_AWARDS.endgame} width={320} />
+              <HelpDecks decks={{ Money: 3, Effort: 2, Research: 1 }} width={236} />
+            </div>
+            <DeckColumn vendorTopCategory="Photography" vendorRemaining={88} venueRemaining={9} width={300} />
+          </div>
+        </DCArtboard>
+      </DCSection>
+
+      {/* ——————————— PLAY SCREENS ——————————— */}
+      <DCSection id="play" title="Play Screens" subtitle="Two layout variations for the main play screen, 2-player base game.">
+        <DCArtboard id="screen-a" label="Variation A · Editorial Spread — grid is the hero, generous spacing" width={1440} height={1520}>
+          <PlayScreenA month={6} />
+        </DCArtboard>
+        <DCArtboard id="screen-b" label="Variation B · Console Dashboard — tasks always visible, denser sidebars" width={1440} height={1220}>
+          <PlayScreenB month={6} />
+        </DCArtboard>
+      </DCSection>
+
+      {/* ——————————— FLOW SCREENS ——————————— */}
+      <DCSection id="flows" title="Flow Screens" subtitle="Lobby, Check-In, End-of-Game, and key modals.">
+        <DCArtboard id="flow-lobby" label="Lobby · pre-game" width={1440} height={920}>
+          <LobbyScreen />
+        </DCArtboard>
+        <DCArtboard id="flow-checkin" label="Check-In 1 · set theme + first goal" width={1440} height={920}>
+          <CheckInScreen number={1} />
+        </DCArtboard>
+        <DCArtboard id="flow-endgame" label="End of Game · final scoring" width={1440} height={1140}>
+          <EndGameScreen />
+        </DCArtboard>
+        <DCArtboard id="flow-modal-book" label="Modal · Book card" width={1440} height={900}>
+          <div style={{ position: "relative", width: 1440, height: 900, background: "var(--paper-shade)" }}>
+            <div style={{ position: "absolute", inset: 0, filter: "blur(2px)", opacity: 0.5 }}>
+              <PlayScreenA month={6} />
+            </div>
+            <BookCardModal card={SAMPLE_HAND[0]} targetCell={6} coins={7} />
+          </div>
+        </DCArtboard>
+        <DCArtboard id="flow-modal-wild" label="Modal · Wild element pick" width={900} height={620}>
+          <div style={{ position: "relative", width: 900, height: 620, background: "var(--paper-shade)" }}>
+            <div style={{ position: "absolute", inset: 0, opacity: 0.45 }}>
+              <div style={{ padding: 48 }}>
+                <WeddingGrid cells={SAMPLE_ALEX_STATE.grid} cellSize={140} />
+              </div>
+            </div>
+            <WildPickModal />
+          </div>
+        </DCArtboard>
+      </DCSection>
+
+    </DesignCanvas>
+  );
+}
+
+root.render(<App />);
+</script>
+
+</body>
+</html>
