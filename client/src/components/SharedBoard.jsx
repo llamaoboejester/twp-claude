@@ -242,17 +242,19 @@ export function MomentsAwardsRow({ moments = [], awards = { race: null, endgame:
 
       {!collapsed && (
         <div style={{ padding: '14px 16px', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-          {moments.map((m, i) => (
+          {moments.map((m, i) => {
+            const flagPattern = Array.from({ length: 9 }, (_, idx) => m.pattern.includes(idx) ? 1 : 0);
+            return (
             <div key={i} style={{ position: 'relative' }}>
               <MomentCard
                 name={m.name}
-                pattern={Array.from({ length: 9 }, (_, idx) => m.pattern.includes(idx) ? 1 : 0)}
+                pattern={flagPattern}
                 first={m.firstReward ?? m.first ?? 3}
                 others={m.othersReward ?? m.others ?? 1}
                 difficulty={m.difficulty ?? 'Easy'}
                 width={120}
                 height={196}
-                onZoom={onZoom ? () => onZoom({ kind: 'moment', ...m }) : null}
+                onZoom={onZoom ? () => onZoom({ kind: 'moment', ...m, pattern: flagPattern }) : null}
               />
               {completedBy[i]?.length > 0 && (
                 <div style={{ position: 'absolute', top: -8, right: -8, background: 'var(--gift)', color: 'var(--paper)', border: '2px solid var(--ink)', padding: '3px 8px', fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', boxShadow: '2px 2px 0 var(--ink)' }}>
@@ -260,7 +262,7 @@ export function MomentsAwardsRow({ moments = [], awards = { race: null, endgame:
                 </div>
               )}
             </div>
-          ))}
+          );})}
           <div style={{ width: 1, alignSelf: 'stretch', background: 'var(--ink-line-2)', margin: '0 4px' }} />
           {awards.race && (
             <AwardCard
