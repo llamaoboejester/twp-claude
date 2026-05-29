@@ -8,7 +8,9 @@ export function adaptElements(elementsObj) {
 
 export function adaptCard(card) {
   if (!card) return null;
-  return { ...card, elements: adaptElements(card.elements) };
+  const elements = adaptElements(card.elements);
+  for (let i = 0; i < (card.wild || 0); i++) elements.push('wild');
+  return { ...card, elements };
 }
 
 // Grid cell: flat { type, name, category, ... } → { type, card: {...} } or { type:"diy", category }
