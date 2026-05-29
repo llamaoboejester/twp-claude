@@ -37,7 +37,7 @@ export default function ActionPanel() {
 // MODAL FRAME
 // ——————————————————————————————————————————————————
 
-function Modal({ title, eyebrow, children, footer, width = 760, onClose, padding = 28, stepper = null }) {
+export function Modal({ title, eyebrow, children, footer, width = 760, onClose, padding = 28, stepper = null }) {
   return (
     <div style={{ width, background: 'var(--paper-soft)', border: '3px solid var(--ink)', boxShadow: '10px 10px 0 var(--ink)', maxHeight: '92vh', overflow: 'auto', cursor: 'default' }} onClick={e => e.stopPropagation()}>
       <div style={{ padding: '16px 24px', background: 'var(--ink)', color: 'var(--paper)', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', borderBottom: '2px solid var(--ink)' }}>

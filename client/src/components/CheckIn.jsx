@@ -1,42 +1,292 @@
 import React, { useState } from 'react';
 import { useGame } from '../context/GameContext';
+import { Modal } from './ActionPanel';
 import { ThemeCard } from './Cards';
+import { CATEGORY_TONE } from './Icons';
 import '../styles.css';
 
-const GOAL_TYPES = [
-  {
-    type: 'theme', label: 'Theme Goal',
-    tiers: [
-      { key: 'unforgettable', label: 'Unforgettable', gifts: 30, desc: 'Only your 2 theme elements have any progress at game end.' },
-      { key: 'thematic',      label: 'Thematic',      gifts: 20, desc: 'Both theme elements in the top 2; no other element as high as the lower.' },
-      { key: 'coordinated',   label: 'Coordinated',   gifts: 15, desc: 'Both theme elements in the top 2; another may tie the lower.' },
-      { key: 'subtle',        label: 'Subtle',         gifts: 10, desc: 'At least 1 theme element in the top 2.' },
-    ],
-  },
-  {
-    type: 'budget', label: 'Budget Goal',
-    tiers: [
-      { key: 'extravagant', label: 'Extravagant', gifts: 15, desc: 'Most booked cards cost 3+ coins.' },
-      { key: 'refined',     label: 'Refined',     gifts: 10, desc: 'Most booked cards cost 2 coins.' },
-      { key: 'modest',      label: 'Modest',      gifts: 5,  desc: 'Most booked cards cost 1 coin.' },
-    ],
-  },
-  {
-    type: 'excitement', label: 'Excitement Goal',
-    tiers: [
-      { key: 'spectacular', label: 'Spectacular', gifts: 15, desc: 'Most booked cards grant 3+ excitement.' },
-      { key: 'vibrant',     label: 'Vibrant',     gifts: 10, desc: 'Most booked cards grant 2 excitement.' },
-      { key: 'intimate',    label: 'Intimate',    gifts: 5,  desc: 'Most booked cards grant 1 excitement.' },
-    ],
-  },
-  {
-    type: 'guest', label: 'Guest Goal',
-    categories: [
-      'Photography', 'Flowers & Decorations', 'Entertainment', 'Stationery',
-      'Attire & Accessories', 'Food & Drink', 'Ceremony', 'Favors & Gifts', 'Transportation',
-    ],
-  },
+const CI_SCRIM = 'rgba(20, 12, 8, 0.4)';
+
+const CI_GOAL_TYPES = [
+  { type: 'Theme', desc: 'Lean into your two theme elements.', kind: 'tier',
+    options: [
+      { name: 'Unforgettable', value: 30, cond: 'Only your 2 theme elements have any progress.' },
+      { name: 'Thematic',      value: 20, cond: 'Your 2 theme elements are the only top 2.' },
+      { name: 'Coordinated',   value: 15, cond: 'Both theme elements in the top 2 (ties OK).' },
+      { name: 'Subtle',        value: 10, cond: 'At least 1 theme element in the top 2.' },
+    ] },
+  { type: 'Budget', desc: 'By cost of your booked cards.', kind: 'tier',
+    options: [
+      { name: 'Extravagant', value: 15, cond: 'Most booked cards cost 3+ coins.' },
+      { name: 'Refined',     value: 10, cond: 'Most booked cards cost 2 coins.' },
+      { name: 'Modest',      value: 5,  cond: 'Most booked cards cost 1 coin.' },
+    ] },
+  { type: 'Excitement', desc: 'By excitement of your booked cards.', kind: 'tier',
+    options: [
+      { name: 'Spectacular', value: 15, cond: 'Most booked cards grant 3+ excitement.' },
+      { name: 'Vibrant',     value: 10, cond: 'Most booked cards grant 2 excitement.' },
+      { name: 'Intimate',    value: 5,  cond: 'Most booked cards grant 1 excitement.' },
+    ] },
+  { type: 'Guest', desc: 'Stack one vendor category.', kind: 'category',
+    options: [
+      { name: 'Admired',    cat: 'Photography' },
+      { name: 'Amazed',     cat: 'Flowers & Decorations' },
+      { name: 'Captivated', cat: 'Entertainment' },
+      { name: 'Honored',    cat: 'Stationery' },
+      { name: 'Impressed',  cat: 'Attire & Accessories' },
+      { name: 'Indulged',   cat: 'Food & Drink' },
+      { name: 'Moved',      cat: 'Ceremony' },
+      { name: 'Pampered',   cat: 'Favors & Gifts' },
+      { name: 'Spoiled',    cat: 'Transportation' },
+    ] },
 ];
+
+function buildGoalPayload(selType, selOpt) {
+  const typeData = CI_GOAL_TYPES[selType];
+  const optData = typeData.options[selOpt];
+  const goalType = typeData.type.toLowerCase();
+  if (typeData.kind === 'category') {
+    return { goalType, tier: null, guestCategory: optData.cat };
+  }
+  return { goalType, tier: optData.name.toLowerCase(), guestCategory: null };
+}
+
+// ——————————————————————————————————————————————————
+// STEPPER
+// ——————————————————————————————————————————————————
+
+function CheckInStepper({ steps, current, onJump }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', padding: '12px 24px', background: 'var(--paper-deep)', borderBottom: '2px solid var(--ink)' }}>
+      {steps.map((s, i) => {
+        const done = s.n < current, active = s.n === current;
+        const clickable = done && !!onJump;
+        return (
+          <React.Fragment key={s.n}>
+            <div onClick={clickable ? () => onJump(s.n) : undefined}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: clickable ? 'pointer' : 'default' }}>
+              <span style={{
+                width: 26, height: 26, borderRadius: '50%', display: 'grid', placeItems: 'center', flex: '0 0 auto',
+                background: active ? 'var(--accent)' : done ? 'var(--ink)' : 'transparent',
+                border: `2px solid ${active ? 'var(--accent)' : done ? 'var(--ink)' : 'var(--ink-line-2)'}`,
+                color: (active || done) ? 'var(--paper)' : 'var(--ink-3)',
+                fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 13, lineHeight: 1,
+              }}>
+                {done ? '✓' : s.n}
+              </span>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: active ? 'var(--ink)' : 'var(--ink-3)', fontWeight: active ? 700 : 400 }}>
+                {s.label}
+              </span>
+            </div>
+            {i < steps.length - 1 && (
+              <div style={{ flex: 1, height: 2, margin: '0 14px', background: s.n < current ? 'var(--ink)' : 'var(--ink-line-2)' }} />
+            )}
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
+}
+
+// ——————————————————————————————————————————————————
+// STEP 1 — SET THEME
+// ——————————————————————————————————————————————————
+
+function CheckInThemeStep({ number, player, sendAction, stepper }) {
+  const [selectedIdx, setSelectedIdx] = useState(null);
+  const [hover, setHover] = useState(null);
+
+  const themeCards = player.themeCards || [];
+  if (themeCards.length === 0 || themeCards[0]?.hidden) {
+    return (
+      <Modal title="Set Your Theme" eyebrow={`Check-In ${number} · Step 1 of 2`} width={640} stepper={stepper}>
+        <div style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: 16, color: 'var(--ink-3)', padding: '24px 0' }}>
+          Loading theme cards…
+        </div>
+      </Modal>
+    );
+  }
+
+  function confirm() {
+    if (selectedIdx === null) return;
+    sendAction({ type: 'CHOOSE_THEME', payload: { themeCardId: themeCards[selectedIdx].id } });
+  }
+
+  return (
+    <Modal
+      title="Set Your Theme"
+      eyebrow={`Check-In ${number} · Step 1 of 2`}
+      width={640}
+      padding={0}
+      stepper={stepper}
+      footer={
+        <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: 13, color: 'var(--ink-3)' }}>
+            Public for the rest of the game.
+          </span>
+          <button
+            onClick={confirm}
+            disabled={selectedIdx === null}
+            style={{ padding: '12px 22px', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 14, letterSpacing: '0.14em', textTransform: 'uppercase', background: 'var(--accent)', color: 'var(--paper)', border: '2px solid var(--ink)', boxShadow: '3px 3px 0 var(--ink)', opacity: selectedIdx === null ? 0.4 : 1, cursor: selectedIdx === null ? 'not-allowed' : 'pointer' }}
+          >
+            Confirm Theme
+          </button>
+        </div>
+      }
+    >
+      <div style={{ padding: 24 }}>
+        <div style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--ink-2)', lineHeight: 1.4, marginBottom: 20 }}>
+          Keep 1 of the 2 themes you drew at setup — the other is discarded.
+        </div>
+        <div style={{ display: 'flex', gap: 20, justifyContent: 'center' }}>
+          {themeCards.map((card, i) => (
+            <div
+              key={card.id}
+              onMouseEnter={() => setHover(i)}
+              onMouseLeave={() => setHover(null)}
+              onClick={() => setSelectedIdx(i)}
+              style={{
+                cursor: 'pointer',
+                outline: selectedIdx === i ? '4px solid var(--accent)' : 'none',
+                outlineOffset: 4,
+                transform: hover === i && selectedIdx !== i ? 'translateY(-6px)' : 'none',
+                transition: 'transform 120ms ease',
+              }}
+            >
+              <ThemeCard name={card.name} elements={card.elements} width={200} height={240} />
+              <div style={{ marginTop: 12, textAlign: 'center', fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: selectedIdx === i ? 'var(--accent)' : 'transparent' }}>
+                ▼ Selected
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ——————————————————————————————————————————————————
+// STEP 2 — SET A GOAL
+// ——————————————————————————————————————————————————
+
+function CheckInGoalStep({ number, player, sendAction, stepper, onBack }) {
+  const [selType, setSelType] = useState(null);
+  const [selOpt, setSelOpt]   = useState(null);
+
+  const alreadySet = new Set((player.goals || []).map(g => g.type));
+  const ready = selType !== null && selOpt !== null;
+
+  function confirm() {
+    if (!ready) return;
+    sendAction({ type: 'SET_GOAL', payload: buildGoalPayload(selType, selOpt) });
+  }
+
+  const type = selType !== null ? CI_GOAL_TYPES[selType] : null;
+
+  return (
+    <Modal
+      title="Set a Goal"
+      eyebrow={`Check-In ${number} · Step ${number === 1 ? '2 of 2' : '1 of 1'}`}
+      width={840}
+      padding={0}
+      stepper={stepper}
+      footer={
+        <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          {onBack
+            ? <button onClick={onBack} style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', background: 'var(--paper-soft)', color: 'var(--ink)', border: '1.5px solid var(--ink)', cursor: 'pointer' }}>← Back to theme</button>
+            : <span />
+          }
+          <button
+            onClick={confirm}
+            disabled={!ready}
+            style={{ padding: '12px 22px', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 14, letterSpacing: '0.14em', textTransform: 'uppercase', background: 'var(--accent)', color: 'var(--paper)', border: '2px solid var(--ink)', boxShadow: '3px 3px 0 var(--ink)', opacity: ready ? 1 : 0.4, cursor: ready ? 'pointer' : 'not-allowed' }}
+          >
+            Confirm · Begin Q{number + 1}
+          </button>
+        </div>
+      }
+    >
+      <div style={{ display: 'grid', gridTemplateColumns: '288px 1fr', alignItems: 'stretch', height: 392 }}>
+
+        {/* LEFT — goal type */}
+        <div style={{ borderRight: '2px solid var(--ink)', padding: 18, background: 'var(--paper-soft)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div className="t-eyebrow" style={{ color: 'var(--ink-3)' }}>1 · Goal type</div>
+          {CI_GOAL_TYPES.map((g, i) => {
+            const on = selType === i;
+            const disabled = alreadySet.has(g.type.toLowerCase());
+            return (
+              <div
+                key={g.type}
+                onClick={() => { if (!disabled) { setSelType(i); setSelOpt(null); } }}
+                style={{
+                  padding: '11px 13px',
+                  cursor: disabled ? 'not-allowed' : 'pointer',
+                  background: on ? 'var(--accent-soft)' : 'var(--paper)',
+                  border: `2px solid ${on ? 'var(--accent)' : 'var(--ink)'}`,
+                  boxShadow: on ? '3px 3px 0 var(--accent)' : '2px 2px 0 var(--ink)',
+                  opacity: disabled ? 0.4 : 1,
+                }}
+              >
+                <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 16, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--ink)' }}>{g.type}</div>
+                <div style={{ fontFamily: 'var(--font-sans)', fontSize: 11.5, lineHeight: 1.3, color: 'var(--ink-2)', marginTop: 3 }}>{g.desc}</div>
+                {disabled && <div style={{ fontFamily: 'var(--font-mono)', fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-4)', marginTop: 4 }}>Already set</div>}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* RIGHT — specific goal */}
+        <div style={{ padding: 18, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          {!type && (
+            <div style={{ flex: 1, display: 'grid', placeItems: 'center', textAlign: 'center', padding: 24 }}>
+              <div style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: 16, color: 'var(--ink-3)', lineHeight: 1.4 }}>
+                Pick a goal type on the left, then choose the specific goal you'll commit to.
+              </div>
+            </div>
+          )}
+          {type && (
+            <>
+              <div className="t-eyebrow" style={{ color: 'var(--ink-3)', marginBottom: 10 }}>2 · Choose your {type.type} goal</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1, minHeight: 0, overflow: 'auto' }}>
+                {type.options.map((o, j) => {
+                  const on = selOpt === j;
+                  if (type.kind === 'category') {
+                    return (
+                      <div key={o.name} onClick={() => setSelOpt(j)} style={{ display: 'grid', gridTemplateColumns: '16px 1fr', gap: 10, alignItems: 'center', padding: '9px 12px', cursor: 'pointer', background: on ? 'var(--accent-soft)' : 'var(--paper-soft)', border: `2px solid ${on ? 'var(--accent)' : 'var(--ink-line-2)'}` }}>
+                        <span style={{ width: 14, height: 14, background: CATEGORY_TONE[o.cat] || 'var(--ink-3)', display: 'block', flex: '0 0 auto' }} />
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 14, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--ink)' }}>{o.name}</div>
+                          <div style={{ fontFamily: 'var(--font-sans)', fontSize: 11.5, lineHeight: 1.3, color: 'var(--ink-2)', marginTop: 2 }}>
+                            <strong style={{ color: 'var(--ink)' }}>{o.cat}</strong> — 5 gifts per vendor booked, up to 15.
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div key={o.name} onClick={() => setSelOpt(j)} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'center', padding: '9px 12px', cursor: 'pointer', background: on ? 'var(--accent-soft)' : 'var(--paper-soft)', border: `2px solid ${on ? 'var(--accent)' : 'var(--ink-line-2)'}` }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 14, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--ink)' }}>{o.name}</div>
+                        <div style={{ fontFamily: 'var(--font-sans)', fontSize: 11, lineHeight: 1.3, color: 'var(--ink-2)', marginTop: 2 }}>{o.cond}</div>
+                      </div>
+                      <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 15, color: 'var(--gift)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                        +{o.value}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ——————————————————————————————————————————————————
+// MAIN COMPONENT
+// ——————————————————————————————————————————————————
 
 export default function CheckIn() {
   const { gameState, playerId, isMyCheckinTurn, sendAction } = useGame();
@@ -45,192 +295,42 @@ export default function CheckIn() {
   const ci = gameState.checkinState;
   const player = gameState.players[playerId];
   const number = ci.checkInNumber;
+  const hasThemeStep = number === 1;
 
-  const QUOTES = {
-    1: 'What kind of wedding is this, anyway?',
-    2: 'The plans are taking shape.',
-    3: 'Quarter four — the home stretch.',
-  };
+  // When it's not my turn, don't show any modal — let the player study the board
+  if (!isMyCheckinTurn) return null;
 
-  return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      background: 'var(--ink)',
-      color: 'var(--paper)',
-      display: 'flex',
-      flexDirection: 'column',
-      zIndex: 150,
-      overflowY: 'auto',
-    }}>
-      {/* Top banner */}
-      <div style={{ padding: '28px 64px 24px', borderBottom: '2px solid var(--accent)', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-        <div>
-          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'var(--accent)' }}>
-            End of Q{number} · After Month {number * 3} · Pause
-          </div>
-          <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 72, lineHeight: 0.9, letterSpacing: '-0.01em', textTransform: 'uppercase', margin: '8px 0 0' }}>
-            Check-In <span style={{ color: 'var(--accent)' }}>{String(number).padStart(2, '0')}</span>
-          </h1>
-        </div>
-        <div style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: 20, lineHeight: 1.3, color: 'var(--coin)', textAlign: 'right', maxWidth: 380 }}>
-          "{QUOTES[number] || ''}"
-        </div>
-      </div>
+  const isThemeStep = ci.step === 'theme';
+  const isGoalStep  = ci.step === 'goal';
 
-      {/* Body */}
-      <div style={{ flex: 1, padding: '48px 64px' }}>
-        {!isMyCheckinTurn ? (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 20 }}>
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'var(--accent)' }}>Waiting</div>
-            <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 36, letterSpacing: '0.06em', textTransform: 'uppercase', lineHeight: 1 }}>
-              Waiting for other players…
-            </div>
-            <div style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: 18, color: 'var(--coin)', opacity: 0.8 }}>
-              Step: {ci.step} · {ci.pendingPlayers.length} player(s) remaining
-            </div>
-          </div>
-        ) : ci.step === 'theme' ? (
-          <ThemeChoice player={player} number={number} sendAction={sendAction} />
-        ) : ci.step === 'goal' ? (
-          <GoalChoice player={player} number={number} sendAction={sendAction} />
-        ) : (
-          <div style={{ fontFamily: 'var(--font-sans)', fontSize: 14, color: 'var(--coin)' }}>Step: {ci.step}</div>
-        )}
-      </div>
-
-      {/* Footer */}
-      <div style={{ padding: '20px 64px', borderTop: '1px solid var(--accent)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--paper)', opacity: 0.7 }}>
-          {gameState.playerOrder.map(pid => `${gameState.players[pid]?.name} · ${ci.pendingPlayers.includes(pid) ? 'choosing…' : 'ready'}`).join('   ·   ')}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ThemeChoice({ player, number, sendAction }) {
-  const [chosen, setChosen] = useState(null);
-
-  if (!player.themeCards || player.themeCards.length === 0 || player.themeCards[0]?.hidden) {
-    return <div style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: 18, color: 'var(--coin)' }}>Loading theme cards…</div>;
-  }
+  // Build stepper config
+  const steps = hasThemeStep
+    ? [{ n: 1, label: 'Set Theme' }, { n: 2, label: 'Set Goal' }]
+    : [{ n: 1, label: 'Set Goal' }];
+  const stepperCurrent = hasThemeStep ? (isThemeStep ? 1 : 2) : 1;
+  const stepper = <CheckInStepper steps={steps} current={stepperCurrent} onJump={null} />;
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 56 }}>
-      <div>
-        <div className="t-eyebrow" style={{ color: 'var(--accent)', marginBottom: 12 }}>Step 1 · Set Your Theme</div>
-        <p style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: 18, lineHeight: 1.4, color: 'var(--coin)', maxWidth: 460, margin: '0 0 24px' }}>
-          Choose 1 of the 2 themes you drew at setup. The other is discarded. Themes are public from this point on.
-        </p>
-        <div style={{ display: 'flex', gap: 18 }}>
-          {player.themeCards.map((card, i) => (
-            <div key={card.id} style={{ cursor: 'pointer', outline: chosen === card.id ? '4px solid var(--accent)' : 'none', outlineOffset: 4 }}
-              onClick={() => setChosen(card.id)}>
-              <ThemeCard name={card.name} elements={card.elements} width={200} height={240} />
-              {chosen === card.id && (
-                <div style={{ marginTop: 14, fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--accent)', textAlign: 'center' }}>
-                  ▼ Selected
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-        <button
-          style={{ marginTop: 28, padding: '14px 28px', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 14, letterSpacing: '0.16em', textTransform: 'uppercase', background: 'var(--accent)', color: 'var(--paper)', border: '2px solid var(--paper)', cursor: chosen ? 'pointer' : 'not-allowed', opacity: chosen ? 1 : 0.5 }}
-          disabled={!chosen}
-          onClick={() => sendAction({ type: 'CHOOSE_THEME', payload: { themeCardId: chosen } })}
-        >
-          Confirm Theme
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function GoalChoice({ player, number, sendAction }) {
-  const [goalType, setGoalType]       = useState(null);
-  const [tier, setTier]               = useState(null);
-  const [guestCategory, setGuestCat]  = useState(null);
-
-  const alreadySet = new Set(player.goals.map(g => g.type));
-  const available = GOAL_TYPES.filter(g => !alreadySet.has(g.type));
-  const selectedGoal = GOAL_TYPES.find(g => g.type === goalType);
-
-  const isValid = goalType && (goalType === 'guest' ? !!guestCategory : !!tier);
-
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 56 }}>
-      <div>
-        <div className="t-eyebrow" style={{ color: 'var(--accent)', marginBottom: 12 }}>Step {number === 1 ? '2' : '1'} · Set a Goal</div>
-        <p style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: 18, lineHeight: 1.4, color: 'var(--coin)', maxWidth: 460, margin: '0 0 24px' }}>
-          Set 1 of the 4 goal types — one per Check-In. Goals are public for the rest of the game.
-        </p>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          {available.map(g => (
-            <button key={g.type}
-              onClick={() => { setGoalType(g.type); setTier(null); setGuestCat(null); }}
-              style={{ padding: '16px 18px', background: goalType === g.type ? 'var(--paper-soft)' : 'transparent', color: goalType === g.type ? 'var(--ink)' : 'var(--paper)', border: goalType === g.type ? '2px solid var(--accent)' : '2px solid var(--accent)', boxShadow: goalType === g.type ? '4px 4px 0 var(--accent)' : 'none', cursor: 'pointer', textAlign: 'left' }}>
-              <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 18, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{g.label}</div>
-            </button>
-          ))}
-        </div>
-
-        <button
-          style={{ marginTop: 28, padding: '14px 28px', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 14, letterSpacing: '0.16em', textTransform: 'uppercase', background: 'var(--accent)', color: 'var(--paper)', border: '2px solid var(--paper)', cursor: isValid ? 'pointer' : 'not-allowed', opacity: isValid ? 1 : 0.5 }}
-          disabled={!isValid}
-          onClick={() => sendAction({ type: 'SET_GOAL', payload: { goalType, tier, guestCategory } })}
-        >
-          Set Goal · Begin Q{number + 1}
-        </button>
-      </div>
-
-      {/* Tier / category selection */}
-      {selectedGoal && (
-        <div>
-          {selectedGoal.tiers && (
-            <>
-              <div className="t-eyebrow" style={{ color: 'var(--accent)', marginBottom: 12 }}>Choose Tier</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {selectedGoal.tiers.map(t => (
-                  <div key={t.key}
-                    onClick={() => setTier(t.key)}
-                    style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 12, alignItems: 'center', padding: '14px 16px', background: tier === t.key ? 'var(--paper-soft)' : 'transparent', color: tier === t.key ? 'var(--ink)' : 'var(--paper)', border: tier === t.key ? '2px solid var(--accent)' : '1.5px solid var(--accent)', cursor: 'pointer' }}>
-                    <div style={{ width: 18, height: 18, border: `2px solid ${tier === t.key ? 'var(--ink)' : 'var(--accent)'}`, display: 'grid', placeItems: 'center', background: tier === t.key ? 'var(--accent)' : 'transparent' }}>
-                      {tier === t.key && <span style={{ color: 'var(--paper)', fontSize: 10 }}>✓</span>}
-                    </div>
-                    <div>
-                      <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 16, letterSpacing: '0.08em', textTransform: 'uppercase', lineHeight: 1 }}>{t.label}</div>
-                      <div style={{ fontFamily: 'var(--font-sans)', fontSize: 12, lineHeight: 1.4, marginTop: 4, opacity: 0.75 }}>{t.desc}</div>
-                    </div>
-                    <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 18, color: tier === t.key ? 'var(--gift)' : 'var(--coin)', fontVariantNumeric: 'tabular-nums' }}>+{t.gifts}</div>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-
-          {selectedGoal.categories && (
-            <>
-              <div className="t-eyebrow" style={{ color: 'var(--accent)', marginBottom: 12 }}>Choose Category</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {selectedGoal.categories.map(cat => (
-                  <button key={cat}
-                    onClick={() => setGuestCat(cat)}
-                    style={{ padding: '10px 16px', background: guestCategory === cat ? 'var(--paper-soft)' : 'transparent', color: guestCategory === cat ? 'var(--ink)' : 'var(--paper)', border: '1.5px solid var(--accent)', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 11, letterSpacing: '0.10em', textTransform: 'uppercase', cursor: 'pointer' }}>
-                    {cat}
-                  </button>
-                ))}
-              </div>
-              {guestCategory && (
-                <div style={{ marginTop: 14, fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--coin)', lineHeight: 1.5 }}>
-                  Scoring: 1 vendor = 5 gifts, 2 = 10 gifts, 3+ = 15 gifts (DIY counts)
-                </div>
-              )}
-            </>
-          )}
-        </div>
+    <div
+      style={{ position: 'fixed', inset: 0, background: CI_SCRIM, display: 'grid', placeItems: 'center', zIndex: 150, padding: 48 }}
+      onClick={e => e.stopPropagation()}
+    >
+      {isThemeStep && (
+        <CheckInThemeStep
+          number={number}
+          player={player}
+          sendAction={sendAction}
+          stepper={stepper}
+        />
+      )}
+      {isGoalStep && (
+        <CheckInGoalStep
+          number={number}
+          player={player}
+          sendAction={sendAction}
+          stepper={stepper}
+          onBack={null}
+        />
       )}
     </div>
   );
