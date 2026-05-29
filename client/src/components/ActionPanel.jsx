@@ -4,7 +4,7 @@ import { WeddingGrid } from './PlayerBoard';
 import { VendorCard, VenueCard, VendorCardDetail, VenueCardDetail, CostChip, ExciteBurst } from './Cards';
 import { CATEGORY_TONE, CATEGORY_SLUG, ElementIcon } from './Icons';
 import { TASK_DEFS } from '../data/taskDefs';
-import { adaptCard } from './stateAdapters';
+import { adaptCard, adaptGridCell } from './stateAdapters';
 import '../styles.css';
 
 const TASK_DEFS_MAP = Object.fromEntries(TASK_DEFS.map(d => [d.id, d]));
