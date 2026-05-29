@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useGame } from '../context/GameContext';
 import { WeddingGrid } from './PlayerBoard';
 import { VendorCard, VenueCard, VendorCardDetail, VenueCardDetail, CostChip, ExciteBurst } from './Cards';
-import { CATEGORY_TONE, ElementIcon } from './Icons';
+import { CATEGORY_TONE, CATEGORY_SLUG, ElementIcon } from './Icons';
 import { TASK_DEFS } from '../data/taskDefs';
 import { adaptCard } from './stateAdapters';
 import '../styles.css';
@@ -37,7 +37,7 @@ export default function ActionPanel() {
 // MODAL FRAME
 // ——————————————————————————————————————————————————
 
-function Modal({ title, eyebrow, children, footer, width = 760, onClose, padding = 28 }) {
+function Modal({ title, eyebrow, children, footer, width = 760, onClose, padding = 28, stepper = null }) {
   return (
     <div style={{ width, background: 'var(--paper-soft)', border: '3px solid var(--ink)', boxShadow: '10px 10px 0 var(--ink)', maxHeight: '92vh', overflow: 'auto', cursor: 'default' }} onClick={e => e.stopPropagation()}>
       <div style={{ padding: '16px 24px', background: 'var(--ink)', color: 'var(--paper)', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', borderBottom: '2px solid var(--ink)' }}>
@@ -49,6 +49,7 @@ function Modal({ title, eyebrow, children, footer, width = 760, onClose, padding
           <button onClick={onClose} style={{ background: 'transparent', border: '1.5px solid var(--paper)', color: 'var(--paper)', padding: '4px 10px', fontFamily: 'var(--font-mono)', fontSize: 12, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>Cancel</button>
         )}
       </div>
+      {stepper}
       <div style={{ padding }}>
         {children}
       </div>
@@ -132,26 +133,143 @@ function FvrPick({ pa, sendAction, gameState }) {
 }
 
 // ——————————————————————————————————————————————————
-// BOOK TARGET
+// BOOK TARGET — 3-step flow
 // ——————————————————————————————————————————————————
 
 const GRID_BONUS = { 0: 'Research', 1: 'Plan', 2: 'Book', 3: 'Help', 4: 'Any', 5: 'Help', 6: 'Book', 7: 'Plan', 8: 'Research' };
 
+const BOOK_STEPS = [
+  { n: 1, label: 'Choose Card' },
+  { n: 2, label: 'Choose Position' },
+  { n: 3, label: 'Confirm & Book' },
+];
+
+function BookStepper({ current, onJump }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', padding: '12px 24px', background: 'var(--paper-deep)', borderBottom: '2px solid var(--ink)' }}>
+      {BOOK_STEPS.map((s, i) => {
+        const done = s.n < current;
+        const active = s.n === current;
+        const clickable = done && !!onJump;
+        return (
+          <React.Fragment key={s.n}>
+            <div onClick={clickable ? () => onJump(s.n) : undefined}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: clickable ? 'pointer' : 'default' }}>
+              <span style={{
+                width: 26, height: 26, borderRadius: '50%', display: 'grid', placeItems: 'center', flex: '0 0 auto',
+                background: active ? 'var(--accent)' : done ? 'var(--ink)' : 'transparent',
+                border: `2px solid ${active ? 'var(--accent)' : done ? 'var(--ink)' : 'var(--ink-line-2)'}`,
+                color: (active || done) ? 'var(--paper)' : 'var(--ink-3)',
+                fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 13, lineHeight: 1,
+              }}>
+                {done ? '✓' : s.n}
+              </span>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: active ? 'var(--ink)' : 'var(--ink-3)', fontWeight: active ? 700 : 400 }}>
+                {s.label}
+              </span>
+            </div>
+            {i < BOOK_STEPS.length - 1 && (
+              <div style={{ flex: 1, height: 2, margin: '0 14px', background: s.n < current ? 'var(--ink)' : 'var(--ink-line-2)' }} />
+            )}
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
+}
+
+function BookHandCard({ card, affordable, onPick }) {
+  const [hover, setHover] = useState(false);
+  const CardComp = card.type === 'venue' ? VenueCard : VendorCard;
+  const lifted = hover && affordable;
+  return (
+    <div
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      onClick={affordable ? onPick : undefined}
+      style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, width: 172, cursor: affordable ? 'pointer' : 'not-allowed', opacity: affordable ? 1 : 0.55, transform: lifted ? 'translateY(-8px)' : 'none', transition: 'transform 130ms ease' }}
+    >
+      <div style={{ pointerEvents: 'none' }}>
+        <CardComp {...card} width={172} highlight={lifted} />
+      </div>
+      {affordable ? (
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', padding: '6px 14px', border: '2px solid var(--ink)', background: lifted ? 'var(--accent)' : 'var(--paper-soft)', color: lifted ? 'var(--paper)' : 'var(--ink)', boxShadow: lifted ? '3px 3px 0 var(--ink)' : '2px 2px 0 var(--ink)', transition: 'background 120ms ease' }}>
+          Select →
+        </span>
+      ) : (
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--warning)', textAlign: 'center', lineHeight: 1.3 }}>
+          Need {card.cost} coins<br />({card.cost} &gt; balance)
+        </span>
+      )}
+    </div>
+  );
+}
+
+function BookGridCell({ index, cell, legal, isVenueSlot, isVenueCard, onPlace }) {
+  const [hover, setHover] = useState(false);
+
+  if (cell) {
+    const isDIY = cell.type === 'diy';
+    const cat = isDIY ? cell.category : cell.card?.category;
+    const name = isDIY ? `DIY ${cell.category}` : cell.card?.name;
+    const tone = cat ? (CATEGORY_TONE[cat] || 'var(--ink-2)') : 'var(--ink-2)';
+    const slug = cat ? (CATEGORY_SLUG[cat] || null) : null;
+    return (
+      <div style={{ aspectRatio: '1 / 1', position: 'relative', background: tone, border: '2px solid var(--ink)', display: 'flex', flexDirection: 'column', filter: 'saturate(0.85)' }}>
+        <div style={{ position: 'absolute', top: 6, left: 6, fontFamily: 'var(--font-mono)', fontSize: 7.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--paper)', background: 'rgba(0,0,0,0.35)', padding: '2px 5px' }}>
+          {isDIY ? 'DIY' : 'Booked'}
+        </div>
+        <div style={{ flex: 1, display: 'grid', placeItems: 'center', minHeight: 0 }}>
+          {slug && <img src={`/icons/category/${slug}.png`} alt="" style={{ width: 40, height: 40, objectFit: 'contain', filter: 'brightness(0) invert(1)', opacity: 0.9 }} />}
+          {!slug && <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 22, color: 'var(--coin)' }}>V</span>}
+        </div>
+        <div style={{ padding: '6px 8px', background: 'rgba(0,0,0,0.32)', fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: 12, color: 'var(--paper)', lineHeight: 1.15, textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {name}
+        </div>
+      </div>
+    );
+  }
+
+  const bonus = GRID_BONUS[index];
+
+  if (legal) {
+    return (
+      <div
+        role="button"
+        onMouseEnter={() => setHover(true)}
+        onMouseLeave={() => setHover(false)}
+        onClick={() => onPlace(index)}
+        style={{ aspectRatio: '1 / 1', position: 'relative', cursor: 'pointer', background: hover ? 'var(--accent-soft)' : 'var(--paper-soft)', border: '3px solid var(--accent)', boxShadow: hover ? '4px 4px 0 var(--ink)' : 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, transition: 'background 100ms ease' }}
+      >
+        {isVenueSlot && (
+          <span style={{ position: 'absolute', top: 8, left: 0, right: 0, textAlign: 'center', fontFamily: 'var(--font-mono)', fontSize: 8, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--accent-deep)' }}>Venue slot</span>
+        )}
+        <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 40, lineHeight: 1, color: 'var(--accent)' }}>{index + 1}</span>
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-2)' }}>+{bonus}</span>
+        <span style={{ position: 'absolute', bottom: 8, left: 0, right: 0, textAlign: 'center', fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--accent)', opacity: hover ? 1 : 0 }}>Place here</span>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ aspectRatio: '1 / 1', background: 'var(--paper-deep)', border: '2px dashed var(--ink-line-2)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, position: 'relative' }}>
+      {isVenueSlot && !isVenueCard && (
+        <span style={{ position: 'absolute', top: 8, left: 0, right: 0, textAlign: 'center', fontFamily: 'var(--font-mono)', fontSize: 8, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--ink-3)' }}>Venue only</span>
+      )}
+      <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 40, lineHeight: 1, color: 'var(--ink-line-2)' }}>{index + 1}</span>
+      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-3)' }}>+{bonus}</span>
+    </div>
+  );
+}
+
 function BookTarget({ pa, player, sendAction, gameState }) {
-  const [selectedCard, setSelectedCard] = useState(null);
-  const [selectedPos, setSelectedPos]   = useState(null);
-  const [diy, setDiy]                   = useState(false);
+  const [step, setStep]       = useState(1);
+  const [cardId, setCardId]   = useState(null);
+  const [position, setPosition] = useState(null);
 
   const openMarket = gameState?.shared?.checkin3Event?.effect?.type === 'open_market';
-  const fvr = gameState?.shared?.fvr || [];
+  const fvr = (gameState?.shared?.fvr || []).filter(Boolean);
   const exclusiveVenue = pa.exclusiveVenue || null;
-
-  const card = player.hand.find(c => c.id === selectedCard)
-    || fvr.find(c => c.id === selectedCard)
-    || (exclusiveVenue?.id === selectedCard ? exclusiveVenue : null);
-
-  const isVenue = card?.type === 'venue';
-  const validPositions = pa.positions.filter(pos => isVenue ? pos === 4 : pos !== 4);
 
   function effectiveCost(c) {
     if (!c) return 0;
@@ -160,70 +278,76 @@ function BookTarget({ pa, player, sendAction, gameState }) {
     return c.cost;
   }
 
-  const cost = card ? effectiveCost(card) : 0;
-  const canAfford = !card || player.coins >= cost;
+  const allCards = [
+    ...player.hand,
+    ...(openMarket ? fvr : []),
+    ...(exclusiveVenue ? [exclusiveVenue] : []),
+  ];
 
-  // Phase 2: confirmation — card and cell both chosen
-  if (selectedCard !== null && selectedPos !== null && !diy) {
-    const adapted = adaptCard(card);
-    const elements = adapted?.elements || [];
+  const rawCard = allCards.find(c => c.id === cardId) || null;
+  const card = rawCard ? adaptCard(rawCard) : null;
+  const isVenue = card?.type === 'venue';
+  const validPositions = pa.positions.filter(pos => isVenue ? pos === 4 : pos !== 4);
+  const cost = rawCard ? effectiveCost(rawCard) : 0;
+  const canAfford = !rawCard || player.coins >= cost;
+
+  const adaptedGrid = (player.grid || []).map(adaptGridCell);
+
+  const jump = (n) => {
+    if (n === 1) { setStep(1); setPosition(null); }
+    if (n === 2 && card) { setStep(2); setPosition(null); }
+  };
+
+  const stepper = <BookStepper current={step} onJump={jump} />;
+
+  // ── STEP 3: Confirm ──────────────────────────────────────────────────────
+
+  if (step === 3 && card && position !== null) {
+    const elements = card.elements || [];
     const balanceAfter = player.coins - cost;
     const steps = [
       { n: 1, label: 'Advance theme element trackers', detail: elements.map(e => e.charAt(0).toUpperCase() + e.slice(1)).join(' · ') || '—' },
-      { n: 2, label: 'Advance excitement', detail: `+${card?.excitement ?? 0}` },
+      { n: 2, label: 'Advance excitement', detail: `+${rawCard?.excitement ?? 0}` },
       { n: 3, label: 'Check all 3 active Moments', detail: null },
-      ...(card?.whenBooked ? [{ n: 4, label: 'Resolve When Booked', detail: describeEffect(card.whenBooked) }] : []),
-      { n: card?.whenBooked ? 5 : 4, label: 'Resolve grid bonus', detail: GRID_BONUS[selectedPos] },
+      ...(rawCard?.whenBooked ? [{ n: 4, label: 'Resolve When Booked', detail: describeEffect(rawCard.whenBooked) }] : []),
+      { n: rawCard?.whenBooked ? 5 : 4, label: 'Resolve grid bonus', detail: GRID_BONUS[position] },
     ];
-
     return (
-      <Modal title="Book This Card" eyebrow="Action · Book" width={1000} padding={0}
+      <Modal title="Confirm & Book" eyebrow="Action · Book · Step 3 of 3" width={1000} padding={0} stepper={stepper}
         footer={
           <>
-            <button onClick={() => setSelectedPos(null)} style={{ padding: '10px 18px', fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', background: 'var(--paper-soft)', color: 'var(--ink)', border: '1.5px solid var(--ink)', cursor: 'pointer' }}>
-              ← Back
-            </button>
+            <button onClick={() => setStep(2)} style={BOOK_GHOST_BTN}>← Back</button>
             {!isVenue && (
-              <button onClick={() => sendAction({ type: 'BOOK_CARD', payload: { cardId: selectedCard, position: selectedPos, diy: true } })}
-                style={{ padding: '10px 18px', fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', background: 'var(--paper-soft)', color: 'var(--ink)', border: '1.5px solid var(--ink)', cursor: 'pointer' }}>
+              <button onClick={() => sendAction({ type: 'BOOK_CARD', payload: { cardId, position, diy: true } })} style={BOOK_GHOST_BTN}>
                 DIY for free
               </button>
             )}
             <button className="btn btn-primary" disabled={!canAfford}
-              onClick={() => sendAction({ type: 'BOOK_CARD', payload: { cardId: selectedCard, position: selectedPos, diy: false } })}>
+              onClick={() => sendAction({ type: 'BOOK_CARD', payload: { cardId, position, diy: false } })}>
               Book · pay {cost} {cost === 1 ? 'coin' : 'coins'}
             </button>
           </>
         }
       >
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', alignItems: 'stretch' }}>
-
-          {/* LEFT: card art */}
           <div style={{ borderRight: '2px solid var(--ink)', display: 'flex', flexDirection: 'column' }}>
             <div style={{ padding: '12px 20px', background: 'var(--paper-deep)', borderBottom: '2px solid var(--ink)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div className="t-eyebrow" style={{ color: 'var(--ink-3)' }}>Booking into cell {selectedPos + 1}</div>
-              <div className="t-eyebrow t-eyebrow-accent">Grid bonus · {GRID_BONUS[selectedPos]}</div>
+              <div className="t-eyebrow" style={{ color: 'var(--ink-3)' }}>Booking into cell {position + 1}</div>
+              <div className="t-eyebrow t-eyebrow-accent">Grid bonus · {GRID_BONUS[position]}</div>
             </div>
             <div style={{ flex: 1, display: 'grid', placeItems: 'center', padding: 28 }}>
               {isVenue
-                ? <VenueCardDetail {...adapted} width={400} height={400} />
-                : <VendorCardDetail {...adapted} width={400} height={400} />
-              }
+                ? <VenueCardDetail {...card} width={400} height={400} />
+                : <VendorCardDetail {...card} width={400} height={400} />}
             </div>
           </div>
-
-          {/* RIGHT: booking rail */}
           <div style={{ background: 'var(--paper-soft)', display: 'flex', flexDirection: 'column' }}>
-
-            {/* payment block */}
             <div style={{ padding: '18px 20px', borderBottom: '2px solid var(--ink)', background: 'var(--ink)' }}>
               <div className="t-eyebrow" style={{ color: 'var(--coin)', marginBottom: 12 }}>Payment</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <CostChip cost={cost} size={40} />
                 <div>
-                  <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 20, color: 'var(--paper)', lineHeight: 1 }}>
-                    {cost} {cost === 1 ? 'coin' : 'coins'}
-                  </div>
+                  <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 20, color: 'var(--paper)', lineHeight: 1 }}>{cost} {cost === 1 ? 'coin' : 'coins'}</div>
                   <div style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--paper)', marginTop: 4 }}>
                     Balance <span style={{ color: 'var(--coin)' }}>{player.coins}</span>
                     <span style={{ color: 'var(--ink-4)' }}> → </span>
@@ -233,19 +357,13 @@ function BookTarget({ pa, player, sendAction, gameState }) {
                 </div>
               </div>
             </div>
-
-            {/* body */}
             <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 16, flex: 1 }}>
-
-              {/* element advances */}
               {elements.length > 0 && (
                 <div>
-                  <div className="t-eyebrow t-eyebrow-accent" style={{ marginBottom: 8 }}>
-                    Advances theme ({elements.length})
-                  </div>
+                  <div className="t-eyebrow t-eyebrow-accent" style={{ marginBottom: 8 }}>Advances theme ({elements.length})</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    {elements.map(e => (
-                      <div key={e} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px 8px', background: 'var(--paper-deep)', border: '1px solid var(--ink-line-2)' }}>
+                    {elements.map((e, i) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px 8px', background: 'var(--paper-deep)', border: '1px solid var(--ink-line-2)' }}>
                         <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <ElementIcon element={e} size={20} style={{ borderRadius: '50%', border: '1.5px solid var(--ink)' }} />
                           <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--ink)', textTransform: 'capitalize' }}>{e}</span>
@@ -256,34 +374,24 @@ function BookTarget({ pa, player, sendAction, gameState }) {
                   </div>
                 </div>
               )}
-
-              {/* resolution order */}
               <div>
                 <div className="t-eyebrow t-eyebrow-accent" style={{ marginBottom: 8 }}>Resolves in order</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {steps.map(s => (
                     <div key={s.n} style={{ display: 'grid', gridTemplateColumns: '18px 1fr', gap: 8, alignItems: 'baseline' }}>
-                      <span style={{ width: 18, height: 18, display: 'grid', placeItems: 'center', background: 'var(--ink)', color: 'var(--paper)', fontFamily: 'var(--font-mono)', fontSize: 9, lineHeight: 1 }}>
-                        {s.n}
-                      </span>
+                      <span style={{ width: 18, height: 18, display: 'grid', placeItems: 'center', background: 'var(--ink)', color: 'var(--paper)', fontFamily: 'var(--font-mono)', fontSize: 9, lineHeight: 1 }}>{s.n}</span>
                       <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11.5, color: 'var(--ink-2)', lineHeight: 1.3 }}>
-                        {s.label}
-                        {s.detail && <span style={{ color: 'var(--ink-3)' }}> · {s.detail}</span>}
+                        {s.label}{s.detail && <span style={{ color: 'var(--ink-3)' }}> · {s.detail}</span>}
                       </span>
                     </div>
                   ))}
                 </div>
               </div>
-
               <div style={{ flex: 1 }} />
-
-              {/* totals footer */}
               <div style={{ borderTop: '2px solid var(--ink)', paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                   <span className="t-eyebrow" style={{ color: 'var(--ink-3)' }}>Excitement gained</span>
-                  <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 22, color: 'var(--excite)', fontVariantNumeric: 'tabular-nums' }}>
-                    +{card?.excitement ?? 0}
-                  </span>
+                  <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 22, color: 'var(--excite)', fontVariantNumeric: 'tabular-nums' }}>+{rawCard?.excitement ?? 0}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                   <span className="t-eyebrow" style={{ color: 'var(--ink-3)' }}>Coins after</span>
@@ -300,63 +408,110 @@ function BookTarget({ pa, player, sendAction, gameState }) {
     );
   }
 
-  // Phase 1: select card + grid position
+  // ── STEP 2: Choose Position ──────────────────────────────────────────────
+
+  if (step === 2 && card) {
+    const legalCount = adaptedGrid.reduce((n, _, i) => n + (!adaptedGrid[i] && validPositions.includes(i) ? 1 : 0), 0);
+    const CardComp = isVenue ? VenueCard : VendorCard;
+    return (
+      <Modal title="Choose Position" eyebrow="Action · Book · Step 2 of 3" width={1000} padding={0} stepper={stepper}
+        footer={
+          <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: 13, color: 'var(--ink-3)' }}>
+              {legalCount} open {legalCount === 1 ? 'cell' : 'cells'} · select one to continue
+            </span>
+            <button onClick={() => setStep(1)} style={BOOK_GHOST_BTN}>← Back to cards</button>
+          </div>
+        }
+      >
+        <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', alignItems: 'stretch' }}>
+          <div style={{ borderRight: '2px solid var(--ink)', padding: 24, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, background: 'var(--paper-soft)' }}>
+            <div className="t-eyebrow t-eyebrow-accent" style={{ alignSelf: 'flex-start' }}>You're placing</div>
+            <div style={{ pointerEvents: 'none' }}>
+              <CardComp {...card} width={200} />
+            </div>
+            <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: 17, color: 'var(--ink)', lineHeight: 1.2 }}>{card.name}</div>
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-3)' }}>
+                {cost} {cost === 1 ? 'coin' : 'coins'} · +{card.excitement} excite
+              </div>
+            </div>
+            <button onClick={() => setStep(1)} style={{ ...BOOK_GHOST_BTN, marginTop: 'auto' }}>Change card</button>
+          </div>
+          <div style={{ padding: 24 }}>
+            <div className="t-eyebrow" style={{ color: 'var(--ink-3)', marginBottom: 4 }}>Your wedding grid</div>
+            <div style={{ fontFamily: 'var(--font-sans)', fontSize: 12.5, color: 'var(--ink-2)', marginBottom: 14, lineHeight: 1.35 }}>
+              {isVenue
+                ? 'Venues are booked into the center slot. Its bonus applies on placement.'
+                : "Pick any highlighted cell. The cell's bonus action triggers when you book here."}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+              {adaptedGrid.map((cell, i) => (
+                <BookGridCell
+                  key={i}
+                  index={i}
+                  cell={cell}
+                  legal={!cell && validPositions.includes(i)}
+                  isVenueSlot={i === 4}
+                  isVenueCard={isVenue}
+                  onPlace={(idx) => { setPosition(idx); setStep(3); }}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      </Modal>
+    );
+  }
+
+  // ── STEP 1: Choose Card ──────────────────────────────────────────────────
+
+  const handCards = player.hand.map(adaptCard);
+  const fvrCards = openMarket ? fvr.map(adaptCard) : [];
+  const exclusiveAdapted = exclusiveVenue ? adaptCard(exclusiveVenue) : null;
+
   return (
-    <Modal title="Book a Card" eyebrow="Action · Book" width={700}>
-      <div style={{ marginBottom: 16 }}>
-        <div className="section-label" style={{ marginBottom: 8 }}>Your Hand ({player.hand.length} cards)</div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {player.hand.length === 0
-            ? <div style={{ color: 'var(--ink-3)', fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase' }}>No cards</div>
-            : player.hand.map(c => (
-              <MiniCard key={c.id} card={c} selected={selectedCard === c.id}
-                onClick={() => { setSelectedCard(c.id); setSelectedPos(null); setDiy(false); }} />
-            ))}
+    <Modal title="Book a Card" eyebrow="Action · Book · Step 1 of 3" width={1000} padding={0} stepper={stepper}>
+      <div style={{ padding: '14px 24px', background: 'var(--paper-deep)', borderBottom: '2px solid var(--ink)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="t-eyebrow" style={{ color: 'var(--ink-3)' }}>Your hand · {handCards.length} cards{fvrCards.length > 0 ? ` + ${fvrCards.length} FVR` : ''}{exclusiveAdapted ? ' + exclusive venue' : ''}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span className="t-eyebrow" style={{ color: 'var(--ink-3)' }}>Coins available</span>
+          <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 20, color: 'var(--coin-deep)', lineHeight: 1 }}>{player.coins}</span>
         </div>
       </div>
-
-      {openMarket && (
-        <div style={{ marginBottom: 16 }}>
-          <div className="section-label" style={{ marginBottom: 8, color: 'var(--accent)' }}>Open Market — FVR</div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {fvr.map(c => (
-              <MiniCard key={c.id} card={c} selected={selectedCard === c.id}
-                onClick={() => { setSelectedCard(c.id); setSelectedPos(null); setDiy(false); }} />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {exclusiveVenue && (
-        <div style={{ marginBottom: 16 }}>
-          <div className="section-label" style={{ marginBottom: 8, color: 'var(--accent)' }}>Exclusive Venue (Planner)</div>
-          <MiniCard card={exclusiveVenue} selected={selectedCard === exclusiveVenue.id}
-            onClick={() => { setSelectedCard(exclusiveVenue.id); setSelectedPos(4); setDiy(false); }} />
-        </div>
-      )}
-
-      {selectedCard && (
-        <>
-          <div className="section-label" style={{ marginBottom: 8 }}>
-            Choose position {isVenue ? '(venue goes center only)' : ''}
-          </div>
-          <div style={{ display: 'inline-block' }}>
-            <WeddingGrid
-              cells={player.grid}
-              cellSize={100}
-              showBonusLabels
-              highlightTargets={validPositions}
-              onCellClick={(pos) => { if (validPositions.includes(pos)) setSelectedPos(pos); }}
+      <div style={{ padding: '30px 24px 26px' }}>
+        <div style={{ display: 'flex', gap: 20, justifyContent: 'center', flexWrap: 'wrap' }}>
+          {[...handCards, ...fvrCards, ...(exclusiveAdapted ? [exclusiveAdapted] : [])].map((c) => (
+            <BookHandCard
+              key={c.id}
+              card={c}
+              affordable={player.coins >= effectiveCost(c)}
+              onPick={() => { setCardId(c.id); setStep(2); }}
             />
-          </div>
-          <div style={{ marginTop: 12, fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: 13, color: 'var(--ink-3)' }}>
-            Select a highlighted cell to continue.
-          </div>
-        </>
-      )}
+          ))}
+          {handCards.length === 0 && fvrCards.length === 0 && !exclusiveAdapted && (
+            <div style={{ color: 'var(--ink-3)', fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase' }}>No cards</div>
+          )}
+        </div>
+        <div style={{ textAlign: 'center', marginTop: 26, fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: 15, color: 'var(--ink-3)' }}>
+          Choose a card to place on your wedding grid. Venues are booked into the center; vendors fill any open cell.
+        </div>
+      </div>
     </Modal>
   );
 }
+
+const BOOK_GHOST_BTN = {
+  padding: '9px 16px',
+  fontFamily: 'var(--font-mono)',
+  fontSize: 10,
+  letterSpacing: '0.16em',
+  textTransform: 'uppercase',
+  background: 'var(--paper-soft)',
+  color: 'var(--ink)',
+  border: '1.5px solid var(--ink)',
+  cursor: 'pointer',
+};
 
 // ——————————————————————————————————————————————————
 // PLAN EFFORT
