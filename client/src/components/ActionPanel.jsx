@@ -37,7 +37,7 @@ export default function ActionPanel() {
 // MODAL FRAME
 // ——————————————————————————————————————————————————
 
-function Modal({ title, eyebrow, children, footer, width = 760, onClose }) {
+function Modal({ title, eyebrow, children, footer, width = 760, onClose, padding = 28 }) {
   return (
     <div style={{ width, background: 'var(--paper-soft)', border: '3px solid var(--ink)', boxShadow: '10px 10px 0 var(--ink)', maxHeight: '92vh', overflow: 'auto', cursor: 'default' }} onClick={e => e.stopPropagation()}>
       <div style={{ padding: '16px 24px', background: 'var(--ink)', color: 'var(--paper)', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', borderBottom: '2px solid var(--ink)' }}>
@@ -49,7 +49,7 @@ function Modal({ title, eyebrow, children, footer, width = 760, onClose }) {
           <button onClick={onClose} style={{ background: 'transparent', border: '1.5px solid var(--paper)', color: 'var(--paper)', padding: '4px 10px', fontFamily: 'var(--font-mono)', fontSize: 12, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>Cancel</button>
         )}
       </div>
-      <div style={{ padding: 28 }}>
+      <div style={{ padding }}>
         {children}
       </div>
       {footer && (
@@ -251,78 +251,337 @@ function BookTarget({ pa, player, sendAction, gameState }) {
 // PLAN EFFORT
 // ——————————————————————————————————————————————————
 
-function PlanEffort({ pa, player, sendAction, deferred }) {
-  const [assignments, setAssignments] = useState({});
-  const [plannerAssignments, setPlannerAssignments] = useState({});
-  const maxEffort = pa.effortAmount;
-  const totalAssigned = Object.values(assignments).reduce((a, b) => a + b, 0);
-  const remaining = maxEffort - totalAssigned;
-  const plannerPool = !deferred ? (pa.plannerPoolAvailable || 0) : 0;
-  const plannerTotal = Object.values(plannerAssignments).reduce((a, b) => a + b, 0);
-  const plannerRemaining = plannerPool - plannerTotal;
-  const unlocked = pa.unlockedTasks || [];
+const PLAN_SECTIONS = ['getting_started', 'making_it_yours', 'putting_together', 'locking_in'];
+const PLAN_SECTION_LABELS = {
+  getting_started:  'Getting Started',
+  making_it_yours:  'Making It Yours',
+  putting_together: 'Putting It Together',
+  locking_in:       'Locking It In',
+};
 
-  function assign(taskId, delta) {
-    const current = assignments[taskId] || 0;
-    const def = TASK_DEFS_MAP[taskId];
-    const ws = player.taskWorksheet[taskId];
-    if (!def || !ws) return;
-    const maxForTask = def.effortRequired - ws.effortApplied;
-    const newVal = Math.max(0, Math.min(current + delta, maxForTask, remaining + current));
-    setAssignments(a => ({ ...a, [taskId]: newVal }));
-  }
+// Tasks that fire an excitement bonus when a specific effort slot is filled.
+const TASK_HOOKS = {
+  task_website:       { 1: '+1 exc' },
+  task_wedding_party: { 3: '+1 exc' },
+  task_tastings:      { 3: '+1 exc' },
+  task_guest_list:    { 4: '+1 exc' },
+  task_save_dates:    { 2: '+1 exc' },
+  task_invitations:   { 2: '+1 exc' },
+};
 
-  function submit() {
-    const filtered = Object.fromEntries(Object.entries(assignments).filter(([, v]) => v > 0));
-    const payload = { assignments: filtered };
-    if (plannerPool > 0 && plannerTotal > 0) {
-      payload.plannerAssignments = Object.fromEntries(Object.entries(plannerAssignments).filter(([, v]) => v > 0));
+const PLAN_MILESTONES = [
+  { at: 4, reward: '+1 effort' }, { at: 8, reward: '+1 effort' },
+  { at: 10, reward: '+1 exc' },   { at: 12, reward: '+1 effort' },
+  { at: 16, reward: '+1 effort' }, { at: 20, reward: '+5 gifts' },
+];
+
+function lockReasonStr(def) {
+  for (const cond of def.lockConditions) {
+    if (cond.type === 'month_min') return `Available month ${cond.month}`;
+    if (cond.type === 'venue_booked') return 'Need venue booked';
+    if (cond.type === 'vendor_booked') return `Need ${cond.category} booked`;
+    if (cond.type === 'task_completed') {
+      const dep = TASK_DEFS_MAP[cond.taskId];
+      return `Complete "${dep?.name || cond.taskId}" first`;
     }
-    sendAction({ type: deferred ? 'APPLY_DEFERRED_EFFORT' : 'PLAN_EFFORT', payload });
   }
+  return '';
+}
 
-  const title = deferred
-    ? `Apply ${maxEffort} Effort${pa.starredOnly ? ' · Starred Only' : ''}`
-    : `Plan — Apply ${maxEffort} Effort`;
+// Single clickable effort box.
+function PlanEffortBox({ state, onClick }) {
+  const bg = state === 'base' ? 'var(--ink)' : state === 'new' ? 'var(--accent)' : 'var(--paper-soft)';
+  const border = state === 'new' ? 'var(--accent-deep)' : 'var(--ink)';
+  const interactive = state === 'next' || state === 'new';
+  return (
+    <span
+      onClick={interactive ? onClick : undefined}
+      style={{
+        width: 18, height: 18,
+        background: bg,
+        border: `1.5px solid ${border}`,
+        flex: '0 0 auto',
+        cursor: interactive ? 'pointer' : 'default',
+        position: 'relative',
+        boxShadow: state === 'next' ? 'inset 0 0 0 2px var(--accent-soft)' : 'none',
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        transition: 'background 80ms ease',
+      }}
+    >
+      {state === 'next' && (
+        <span style={{ color: 'var(--accent)', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 13, lineHeight: 1 }}>+</span>
+      )}
+    </span>
+  );
+}
+
+// One task row with click-to-fill effort boxes.
+function PlanTaskRow({ def, ws, added, canAdd, onSetAdded, isLocked, starredOnly }) {
+  const baseFilled = ws?.completed ? def.effortRequired : (ws?.effortApplied || 0);
+  const completedAlready = !!ws?.completed;
+  const willComplete = !completedAlready && (baseFilled + added) >= def.effortRequired;
+  const isDisabled = isLocked || completedAlready || (starredOnly && !def.starred);
+
+  const clickBox = (i) => {
+    if (isDisabled) return;
+    if (i === baseFilled + added && canAdd) {
+      onSetAdded(added + 1);
+    } else if (i >= baseFilled && i < baseFilled + added) {
+      onSetAdded(i - baseFilled);
+    }
+  };
+
+  const boxState = (i) => {
+    if (i < baseFilled) return 'base';
+    if (i < baseFilled + added) return 'new';
+    if (i === baseFilled + added && !isDisabled) return canAdd ? 'next' : 'empty';
+    return 'empty';
+  };
+
+  const lockReason = isLocked ? lockReasonStr(def) : '';
+  const hooks = TASK_HOOKS[def.id];
 
   return (
-    <Modal title={title} eyebrow="Action · Plan" width={560}
+    <div style={{
+      display: 'grid', gridTemplateColumns: '16px 1fr auto auto',
+      gap: 10, alignItems: 'center',
+      padding: '7px 6px',
+      background: willComplete ? 'var(--accent-soft)' : (completedAlready ? 'var(--paper-deep)' : 'transparent'),
+      opacity: isDisabled ? 0.45 : 1,
+      borderBottom: '1px solid var(--ink-line-2)',
+    }}>
+      <span style={{ width: 16, display: 'grid', placeItems: 'center' }}>
+        {isLocked && <span style={{ color: 'var(--ink-3)', fontSize: 11 }}>🔒</span>}
+        {!isLocked && completedAlready && <span style={{ color: 'var(--gift)', fontSize: 13 }}>✓</span>}
+        {!isLocked && !completedAlready && def.key && (
+          <span style={{ color: 'var(--accent)', fontFamily: 'var(--font-mono)', fontSize: 11 }}>★</span>
+        )}
+      </span>
+
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: 'var(--font-sans)', fontSize: 12.5, lineHeight: 1.2, color: isLocked ? 'var(--ink-3)' : 'var(--ink)', textDecoration: completedAlready ? 'line-through' : 'none' }}>
+          {def.name}{def.starred && !def.key ? '★' : ''}
+        </div>
+        {(lockReason || hooks) && (
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 8.5, letterSpacing: '0.08em', color: isLocked ? 'var(--warning)' : 'var(--ink-3)', marginTop: 2, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {lockReason && <span>{lockReason}</span>}
+            {hooks && Object.entries(hooks).map(([slot, rw]) => (
+              <span key={slot} style={{ color: 'var(--accent)' }}>SLOT {slot}: {rw}</span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div style={{ display: 'flex', gap: 3 }}>
+        {Array.from({ length: def.effortRequired }, (_, i) => (
+          <PlanEffortBox key={i} state={completedAlready ? 'base' : boxState(i)} onClick={() => clickBox(i)} />
+        ))}
+      </div>
+
+      <div style={{ width: 30, textAlign: 'right', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 14, color: (willComplete || completedAlready) ? 'var(--gift)' : 'var(--ink-3)', fontVariantNumeric: 'tabular-nums' }}>
+        +{def.gifts}
+      </div>
+    </div>
+  );
+}
+
+function PlanEffort({ pa, player, sendAction, deferred }) {
+  const [added, setAdded] = useState({});
+  const maxEffort = pa.effortAmount;
+  const unlocked = new Set(pa.unlockedTasks || []);
+  const spent = Object.values(added).reduce((a, b) => a + b, 0);
+  const remaining = maxEffort - spent;
+
+  const setTaskAdded = (taskId, val) => {
+    setAdded(prev => {
+      const next = { ...prev };
+      if (val <= 0) delete next[taskId]; else next[taskId] = val;
+      return next;
+    });
+  };
+
+  const consequences = React.useMemo(() => {
+    let gifts = 0;
+    const completing = [];
+    const hooks = [];
+    Object.entries(added).forEach(([taskId, add]) => {
+      if (!add) return;
+      const def = TASK_DEFS_MAP[taskId];
+      const ws = player.taskWorksheet?.[taskId];
+      if (!def) return;
+      const base = ws?.effortApplied || 0;
+      const newFilled = base + add;
+      const taskHooks = TASK_HOOKS[taskId];
+      if (taskHooks) {
+        Object.entries(taskHooks).forEach(([slot, rw]) => {
+          const s = Number(slot);
+          if (newFilled >= s && base < s) hooks.push({ name: def.name, slot: s, reward: rw });
+        });
+      }
+      if (newFilled >= def.effortRequired && !ws?.completed) {
+        completing.push({ name: def.name, gift: def.gifts });
+        gifts += def.gifts;
+      }
+    });
+    const startCompleted = player.completedTasksCount || 0;
+    const endCompleted = startCompleted + completing.length;
+    const crossed = PLAN_MILESTONES.filter(m => m.at > startCompleted && m.at <= endCompleted);
+    return { gifts, completing, hooks, startCompleted, endCompleted, crossed };
+  }, [added, player]);
+
+  function submit() {
+    const filtered = Object.fromEntries(Object.entries(added).filter(([, v]) => v > 0));
+    sendAction({ type: deferred ? 'APPLY_DEFERRED_EFFORT' : 'PLAN_EFFORT', payload: { assignments: filtered } });
+  }
+
+  const eyebrow = deferred
+    ? `Deferred effort${pa.starredOnly ? ' · Starred tasks only' : ''}`
+    : 'Action · Plan';
+  const title = `Apply ${maxEffort} Effort`;
+
+  return (
+    <Modal title={title} eyebrow={eyebrow} width={1000} padding={0}
       footer={
-        <button className="btn btn-primary" disabled={totalAssigned === 0 && plannerTotal === 0} onClick={submit}>
-          Apply {totalAssigned} Effort{plannerTotal > 0 ? ` + ${plannerTotal} Planner` : ''}
-        </button>
+        <>
+          <button onClick={() => setAdded({})} style={{ padding: '10px 18px', fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', background: 'var(--paper-soft)', color: 'var(--ink)', border: '1.5px solid var(--ink)', cursor: 'pointer' }}>
+            Reset
+          </button>
+          <button className="btn btn-primary" disabled={spent === 0} onClick={submit}>
+            Confirm Plan · spend {spent} effort
+          </button>
+        </>
       }
     >
-      {deferred && pa.starredOnly && (
-        <div style={{ marginBottom: 12, padding: '8px 12px', background: 'var(--accent-soft)', border: '1.5px solid var(--accent)', fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--accent-deep)' }}>
-          This effort may only go to starred (★) tasks.
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', alignItems: 'stretch' }}>
+
+        {/* LEFT: interactive worksheet */}
+        <div style={{ borderRight: '2px solid var(--ink)' }}>
+          <div style={{ padding: '12px 20px', background: 'var(--paper-deep)', borderBottom: '2px solid var(--ink)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="t-eyebrow" style={{ color: 'var(--ink-3)' }}>Click an effort box to assign · ★ = key task</div>
+            <div className="t-eyebrow" style={{ color: 'var(--ink-3)' }}>Gifts on completion →</div>
+          </div>
+          <div style={{ maxHeight: '60vh', overflow: 'auto', padding: '4px 20px 16px' }}>
+            {PLAN_SECTIONS.map(section => {
+              const defs = TASK_DEFS.filter(d => d.section === section);
+              return (
+                <div key={section} style={{ marginBottom: 6 }}>
+                  <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--accent)', padding: '12px 4px 4px', borderBottom: '2px solid var(--ink)', marginBottom: 2, position: 'sticky', top: 0, background: 'var(--paper-soft)', zIndex: 1 }}>
+                    {PLAN_SECTION_LABELS[section]}
+                  </div>
+                  {defs.map(def => {
+                    const ws = player.taskWorksheet?.[def.id];
+                    const isLocked = !unlocked.has(def.id) && !ws?.completed;
+                    const taskAdded = added[def.id] || 0;
+                    const baseFilled = ws?.completed ? def.effortRequired : (ws?.effortApplied || 0);
+                    const maxForTask = def.effortRequired - baseFilled;
+                    const canAdd = remaining > 0 && !isLocked && !ws?.completed && taskAdded < maxForTask;
+                    return (
+                      <PlanTaskRow
+                        key={def.id}
+                        def={def}
+                        ws={ws}
+                        added={taskAdded}
+                        canAdd={canAdd}
+                        isLocked={isLocked}
+                        starredOnly={deferred && pa.starredOnly}
+                        onSetAdded={(v) => setTaskAdded(def.id, v)}
+                      />
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
         </div>
-      )}
-      <div style={{ marginBottom: 12, fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.14em', color: 'var(--ink-2)' }}>
-        Remaining: <span style={{ color: remaining > 0 ? 'var(--accent)' : 'var(--ink-3)', fontWeight: 700 }}>{remaining}</span> of {maxEffort}
-      </div>
-      <div style={{ maxHeight: 300, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
-        {unlocked.map(taskId => {
-          const def = TASK_DEFS_MAP[taskId];
-          if (!def) return null;
-          const ws = player.taskWorksheet[taskId];
-          const assigned = assignments[taskId] || 0;
-          const maxForTask = def.effortRequired - (ws?.effortApplied || 0);
-          return (
-            <div key={taskId} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: 'var(--paper-deep)', border: '1.5px solid var(--ink-line-2)' }}>
-              <div style={{ flex: 1, fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--ink-2)' }}>
-                {def.key && <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--accent)', marginRight: 6 }}>★</span>}
-                {def.name}
-                <span style={{ color: 'var(--ink-4)', marginLeft: 6, fontSize: 11 }}>({ws?.effortApplied || 0}/{def.effortRequired})</span>
+
+        {/* RIGHT: live "this turn" rail */}
+        <div style={{ background: 'var(--paper-soft)', display: 'flex', flexDirection: 'column' }}>
+
+          {/* effort budget */}
+          <div style={{ padding: '18px 20px', borderBottom: '2px solid var(--ink)', background: 'var(--ink)' }}>
+            <div className="t-eyebrow" style={{ color: 'var(--coin)', marginBottom: 10 }}>Effort this turn</div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+              {Array.from({ length: maxEffort }, (_, i) => (
+                <span key={i} style={{ width: 32, height: 32, borderRadius: '50%', border: '2px solid var(--coin)', background: i < spent ? 'var(--accent)' : 'transparent', display: 'grid', placeItems: 'center', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 15, color: i < spent ? 'var(--paper)' : 'var(--coin)', transition: 'background 100ms ease' }}>
+                  {i < spent ? '✓' : i + 1}
+                </span>
+              ))}
+            </div>
+            <div style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--paper)' }}>
+              {remaining > 0
+                ? <><strong style={{ color: 'var(--coin)' }}>{remaining}</strong> effort left to assign</>
+                : <span style={{ color: 'var(--coin)' }}>All effort assigned</span>}
+            </div>
+          </div>
+
+          {/* consequences */}
+          <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 16, flex: 1 }}>
+
+            {spent === 0 && (
+              <div style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: 15, color: 'var(--ink-3)', lineHeight: 1.35 }}>
+                Assign your effort on the left. The results of this turn will tally here.
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <button className="btn btn-ghost" style={{ padding: '2px 10px', fontSize: 16, lineHeight: 1 }} onClick={() => assign(taskId, -1)} disabled={assigned === 0}>−</button>
-                <span style={{ minWidth: 20, textAlign: 'center', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 16, color: 'var(--ink)' }}>{assigned}</span>
-                <button className="btn btn-ghost" style={{ padding: '2px 10px', fontSize: 16, lineHeight: 1 }} onClick={() => assign(taskId, 1)} disabled={remaining === 0 || assigned >= maxForTask}>+</button>
+            )}
+
+            {consequences.completing.length > 0 && (
+              <div>
+                <div className="t-eyebrow t-eyebrow-accent" style={{ marginBottom: 8 }}>Completing ({consequences.completing.length})</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {consequences.completing.map(c => (
+                    <div key={c.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '5px 8px', background: 'var(--paper-deep)', border: '1px solid var(--ink-line-2)' }}>
+                      <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--ink)' }}>{c.name}</span>
+                      <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 13, color: 'var(--gift)' }}>+{c.gift}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {consequences.hooks.length > 0 && (
+              <div>
+                <div className="t-eyebrow t-eyebrow-accent" style={{ marginBottom: 8 }}>Hooks fired</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {consequences.hooks.map((h, i) => (
+                    <div key={i} style={{ fontFamily: 'var(--font-sans)', fontSize: 11.5, color: 'var(--ink-2)', display: 'flex', justifyContent: 'space-between' }}>
+                      <span>{h.name} · slot {h.slot}</span>
+                      <strong style={{ color: 'var(--accent)' }}>{h.reward}</strong>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {consequences.crossed.length > 0 && (
+              <div>
+                <div className="t-eyebrow t-eyebrow-accent" style={{ marginBottom: 8 }}>Tracker milestones</div>
+                {consequences.crossed.map(m => (
+                  <div key={m.at} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontFamily: 'var(--font-sans)', fontSize: 11.5, color: 'var(--ink-2)' }}>
+                    <span>Reach {m.at} completed</span>
+                    <strong style={{ color: 'var(--accent)' }}>{m.reward}</strong>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ flex: 1 }} />
+
+            <div style={{ borderTop: '2px solid var(--ink)', paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                <span className="t-eyebrow" style={{ color: 'var(--ink-3)' }}>Gifts gained</span>
+                <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 22, color: 'var(--gift)', fontVariantNumeric: 'tabular-nums' }}>+{consequences.gifts}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                <span className="t-eyebrow" style={{ color: 'var(--ink-3)' }}>Completed tasks</span>
+                <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 15, color: 'var(--ink)', fontVariantNumeric: 'tabular-nums' }}>
+                  {consequences.startCompleted}
+                  <span style={{ color: 'var(--ink-3)' }}> → </span>
+                  <span style={{ color: consequences.endCompleted > consequences.startCompleted ? 'var(--accent)' : 'var(--ink)' }}>{consequences.endCompleted}</span>
+                  <span style={{ fontSize: 10, color: 'var(--ink-3)' }}> /28</span>
+                </span>
               </div>
             </div>
-          );
-        })}
+          </div>
+        </div>
       </div>
     </Modal>
   );
