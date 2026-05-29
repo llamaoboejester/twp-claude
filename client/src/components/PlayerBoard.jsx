@@ -1,10 +1,12 @@
 import React from 'react';
 import { useGame } from '../context/GameContext';
 import VendorGrid from './VendorGrid';
+import { HandCard } from './ActionPanel';
 import '../styles.css';
 
 const ELEMENTS = ['whimsy', 'edge', 'nature', 'tradition', 'elegance'];
 const ELEMENT_ICONS = { whimsy: '🌀', edge: '⚡', nature: '🌿', tradition: '💍', elegance: '💎' };
+const ELEMENT_COLORS = { whimsy: '#ff69b4', edge: '#9c27b0', nature: '#4caf50', tradition: '#8b1a1a', elegance: '#c9a227' };
 const ELEMENT_MILESTONES = [2, 5, 8];
 
 export default function PlayerBoard() {
@@ -15,12 +17,34 @@ export default function PlayerBoard() {
 
   return (
     <div style={{ padding: 10, overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <HandSection hand={player.hand} />
       <VendorGrid grid={player.grid} isOwn={true} />
       <ThemeSection player={player} />
       <ExcitementBar player={player} />
       <ElementTrackers elements={player.themeElements} />
       <HelpersSection helpers={player.helpers} />
       {player.plannerContract && <PlannerSection player={player} />}
+    </div>
+  );
+}
+
+function HandSection({ hand }) {
+  return (
+    <div className="card" style={{ padding: 10 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+        <div className="section-label">Hand</div>
+        <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>{hand.length}/5 cards</span>
+      </div>
+      {hand.length === 0
+        ? <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>No cards in hand</div>
+        : (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {hand.map(card => (
+              <HandCard key={card.id} card={card} selectable={false} />
+            ))}
+          </div>
+        )
+      }
     </div>
   );
 }
@@ -34,18 +58,47 @@ function ThemeSection({ player }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontWeight: 700, fontSize: 14 }}>{player.theme.name}</span>
             {player.theme.elements.map(el => (
-              <span key={el} className={`tag element-${el}`}>{ELEMENT_ICONS[el]} {el}</span>
+              <span key={el} className={`tag element-${el}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: ELEMENT_COLORS[el], display: 'inline-block', flexShrink: 0 }} />
+                {ELEMENT_ICONS[el]} {el}
+              </span>
             ))}
           </div>
         )
-        : (
-          <div style={{ color: 'var(--text-dim)', fontSize: 12 }}>
-            Theme selected at Check-In 1
-            {player.themeCards.length > 0 && !player.themeCards[0].hidden &&
-              <span> (you have {player.themeCards.length} theme card{player.themeCards.length > 1 ? 's' : ''})</span>
-            }
-          </div>
-        )
+        : player.themeCards.length > 0 && !player.themeCards[0]?.hidden
+          ? (
+            <div>
+              <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 6 }}>
+                Your options — choose at Check-In 1:
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {player.themeCards.map(card => (
+                  <div key={card.id} style={{
+                    padding: '6px 10px',
+                    border: '1px solid var(--accent2)',
+                    borderRadius: 6,
+                    background: 'var(--surface2)',
+                    fontSize: 12,
+                  }}>
+                    <div style={{ fontWeight: 700, marginBottom: 3 }}>{card.name}</div>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      {card.elements.map(el => (
+                        <span key={el} className={`tag element-${el}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                          <span style={{ width: 8, height: 8, borderRadius: '50%', background: ELEMENT_COLORS[el], display: 'inline-block', flexShrink: 0 }} />
+                          {ELEMENT_ICONS[el]} {el}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
+          : (
+            <div style={{ color: 'var(--text-dim)', fontSize: 12 }}>
+              Theme selected at Check-In 1
+            </div>
+          )
       }
       {player.goals.length > 0 && (
         <div style={{ marginTop: 8 }}>

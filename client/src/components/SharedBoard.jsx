@@ -3,6 +3,7 @@ import { useGame } from '../context/GameContext';
 import '../styles.css';
 
 const MOMENT_GRID_SIZE = 28;
+const ELEMENT_COLORS = { whimsy: '#ff69b4', edge: '#9c27b0', nature: '#4caf50', tradition: '#8b1a1a', elegance: '#c9a227' };
 
 export default function SharedBoard() {
   const { gameState } = useGame();
@@ -110,6 +111,12 @@ function FvrCard({ card }) {
       <div style={{ display: 'flex', gap: 4, marginTop: 3 }}>
         <span style={{ fontSize: 10 }}>{card.cost}¢</span>
         {(card.excitement > 0) && <span style={{ fontSize: 10, color: 'var(--accent2)' }}>+{card.excitement}✨</span>}
+        {card.wild > 0 && <span style={{ fontSize: 10, color: '#aaa' }}>★</span>}
+      </div>
+      <div style={{ display: 'flex', gap: 2, flexWrap: 'wrap', marginTop: 3 }}>
+        {Object.entries(card.elements || {}).map(([el, v]) =>
+          v > 0 ? <div key={el} style={{ width: 7, height: 7, borderRadius: '50%', background: ELEMENT_COLORS[el] }} /> : null
+        )}
       </div>
     </div>
   );
