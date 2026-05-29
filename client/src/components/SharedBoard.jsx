@@ -246,7 +246,7 @@ export function MomentsAwardsRow({ moments = [], awards = { race: null, endgame:
             <div key={i} style={{ position: 'relative' }}>
               <MomentCard
                 name={m.name}
-                pattern={m.pattern}
+                pattern={Array.from({ length: 9 }, (_, idx) => m.pattern.includes(idx) ? 1 : 0)}
                 first={m.firstReward ?? m.first ?? 3}
                 others={m.othersReward ?? m.others ?? 1}
                 difficulty={m.difficulty ?? 'Easy'}
