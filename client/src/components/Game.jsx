@@ -66,6 +66,19 @@ export default function Game() {
     ? myPlayer.themeCards.map(c => ({ name: c.name, elements: c.elements }))
     : null;
 
+  // Mirror server-side availability checks so the dock disables correctly.
+  const openMarket = shared.checkin3Event?.effect?.type === 'open_market';
+  const hasFvrCards = (shared.fvr || []).some(Boolean);
+  const hasExclusiveVenue = myPlayer?.plannerContracted && !myPlayer?.grid[4]
+    && !!myPlayer?.plannerContract?.exclusiveVenue;
+  const canBook = (myPlayer?.hand?.length > 0) || hasExclusiveVenue || (openMarket && hasFvrCards);
+  const canHelp = (myPlayer?.helpers?.length ?? 0) < 3;
+  const availableActions = ['Research', 'Book', 'Plan', 'Help'].filter(a => {
+    if (a === 'Book') return canBook;
+    if (a === 'Help') return canHelp;
+    return true;
+  });
+
   function handleActionChoose(action) {
     if (!isMyTurnAct) return;
     sendAction({ type: 'SELECT_ACTION', payload: { action: action.toLowerCase() } });
@@ -140,7 +153,7 @@ export default function Game() {
             </div>
 
             <HandStrip cards={myHand} cardW={124} onZoom={setZoomCard} />
-            <ActionDock meepleAt={meepleAt} available={['Research', 'Book', 'Plan', 'Help']} onChoose={isMyTurnAct && !gameState.pendingAction ? handleActionChoose : null} />
+            <ActionDock meepleAt={meepleAt} available={availableActions} onChoose={isMyTurnAct && !gameState.pendingAction ? handleActionChoose : null} />
           </div>
 
           {/* RIGHT COLUMN */}
