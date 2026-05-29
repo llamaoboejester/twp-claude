@@ -24,7 +24,7 @@ export default function Lobby() {
 
   const inLobby = gameCode && gameState?.phase === 'lobby';
   const players = gameState ? Object.values(gameState.players) : [];
-  const canStart = players.length >= 2;
+  const canStart = players.length >= 1;
   const isHost = players[0]?.id === playerId;
 
   function toggleModule(key) { setModules(m => ({ ...m, [key]: !m[key] })); }

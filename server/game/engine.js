@@ -160,7 +160,7 @@ class GameEngine {
     const playerIds = s.playerOrder;
     const count = playerIds.length;
 
-    if (count < 2) return { success: false, error: 'Need at least 2 players' };
+    if (count < 1) return { success: false, error: 'Need at least 1 player' };
     if (s.phase !== 'lobby') return { success: false, error: 'Game already started' };
 
     const allVendors = shuffle([...VENDOR_CARDS]);
