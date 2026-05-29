@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useGame } from '../context/GameContext';
 import { WeddingGrid } from './PlayerBoard';
-import { VendorCard, VenueCard, CostChip, ExciteBurst } from './Cards';
-import { CATEGORY_TONE } from './Icons';
+import { VendorCard, VenueCard, VendorCardDetail, VenueCardDetail, CostChip, ExciteBurst } from './Cards';
+import { CATEGORY_TONE, ElementIcon } from './Icons';
 import { TASK_DEFS } from '../data/taskDefs';
 import { adaptCard } from './stateAdapters';
 import '../styles.css';
@@ -160,25 +160,149 @@ function BookTarget({ pa, player, sendAction, gameState }) {
     return c.cost;
   }
 
-  const canBook = selectedCard && selectedPos !== null && !(isVenue && diy) && (diy || !card || player.coins >= effectiveCost(card));
+  const cost = card ? effectiveCost(card) : 0;
+  const canAfford = !card || player.coins >= cost;
 
-  return (
-    <Modal title="Book a Card" eyebrow="Action · Book" width={700}
-      footer={
-        selectedCard && (
+  // Phase 2: confirmation — card and cell both chosen
+  if (selectedCard !== null && selectedPos !== null && !diy) {
+    const adapted = adaptCard(card);
+    const elements = adapted?.elements || [];
+    const balanceAfter = player.coins - cost;
+    const steps = [
+      { n: 1, label: 'Advance theme element trackers', detail: elements.map(e => e.charAt(0).toUpperCase() + e.slice(1)).join(' · ') || '—' },
+      { n: 2, label: 'Advance excitement', detail: `+${card?.excitement ?? 0}` },
+      { n: 3, label: 'Check all 3 active Moments', detail: null },
+      ...(card?.whenBooked ? [{ n: 4, label: 'Resolve When Booked', detail: card.whenBooked }] : []),
+      { n: card?.whenBooked ? 5 : 4, label: 'Resolve grid bonus', detail: GRID_BONUS[selectedPos] },
+    ];
+
+    return (
+      <Modal title="Book This Card" eyebrow="Action · Book" width={1000} padding={0}
+        footer={
           <>
+            <button onClick={() => setSelectedPos(null)} style={{ padding: '10px 18px', fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', background: 'var(--paper-soft)', color: 'var(--ink)', border: '1.5px solid var(--ink)', cursor: 'pointer' }}>
+              ← Back
+            </button>
             {!isVenue && (
-              <button className="btn btn-ghost" onClick={() => { if (canBook || diy) sendAction({ type: 'BOOK_CARD', payload: { cardId: selectedCard, position: selectedPos, diy: true } }); }} disabled={!selectedPos}>
+              <button onClick={() => sendAction({ type: 'BOOK_CARD', payload: { cardId: selectedCard, position: selectedPos, diy: true } })}
+                style={{ padding: '10px 18px', fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', background: 'var(--paper-soft)', color: 'var(--ink)', border: '1.5px solid var(--ink)', cursor: 'pointer' }}>
                 DIY for free
               </button>
             )}
-            <button className="btn btn-primary" disabled={!canBook} onClick={() => sendAction({ type: 'BOOK_CARD', payload: { cardId: selectedCard, position: selectedPos, diy } })}>
-              {diy ? 'Book DIY (free)' : `Book · pay ${effectiveCost(card)} coins`}
+            <button className="btn btn-primary" disabled={!canAfford}
+              onClick={() => sendAction({ type: 'BOOK_CARD', payload: { cardId: selectedCard, position: selectedPos, diy: false } })}>
+              Book · pay {cost} {cost === 1 ? 'coin' : 'coins'}
             </button>
           </>
-        )
-      }
-    >
+        }
+      >
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', alignItems: 'stretch' }}>
+
+          {/* LEFT: card art */}
+          <div style={{ borderRight: '2px solid var(--ink)', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ padding: '12px 20px', background: 'var(--paper-deep)', borderBottom: '2px solid var(--ink)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div className="t-eyebrow" style={{ color: 'var(--ink-3)' }}>Booking into cell {selectedPos + 1}</div>
+              <div className="t-eyebrow t-eyebrow-accent">Grid bonus · {GRID_BONUS[selectedPos]}</div>
+            </div>
+            <div style={{ flex: 1, display: 'grid', placeItems: 'center', padding: 28 }}>
+              {isVenue
+                ? <VenueCardDetail {...adapted} width={400} height={400} />
+                : <VendorCardDetail {...adapted} width={400} height={400} />
+              }
+            </div>
+          </div>
+
+          {/* RIGHT: booking rail */}
+          <div style={{ background: 'var(--paper-soft)', display: 'flex', flexDirection: 'column' }}>
+
+            {/* payment block */}
+            <div style={{ padding: '18px 20px', borderBottom: '2px solid var(--ink)', background: 'var(--ink)' }}>
+              <div className="t-eyebrow" style={{ color: 'var(--coin)', marginBottom: 12 }}>Payment</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <CostChip cost={cost} size={40} />
+                <div>
+                  <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 20, color: 'var(--paper)', lineHeight: 1 }}>
+                    {cost} {cost === 1 ? 'coin' : 'coins'}
+                  </div>
+                  <div style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--paper)', marginTop: 4 }}>
+                    Balance <span style={{ color: 'var(--coin)' }}>{player.coins}</span>
+                    <span style={{ color: 'var(--ink-4)' }}> → </span>
+                    <strong style={{ color: canAfford ? 'var(--coin)' : 'var(--accent)' }}>{balanceAfter}</strong>
+                    {!canAfford && <span style={{ color: 'var(--accent)', marginLeft: 6, fontSize: 11 }}>Not enough</span>}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* body */}
+            <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 16, flex: 1 }}>
+
+              {/* element advances */}
+              {elements.length > 0 && (
+                <div>
+                  <div className="t-eyebrow t-eyebrow-accent" style={{ marginBottom: 8 }}>
+                    Advances theme ({elements.length})
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {elements.map(e => (
+                      <div key={e} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px 8px', background: 'var(--paper-deep)', border: '1px solid var(--ink-line-2)' }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <ElementIcon element={e} size={20} style={{ borderRadius: '50%', border: '1.5px solid var(--ink)' }} />
+                          <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--ink)', textTransform: 'capitalize' }}>{e}</span>
+                        </span>
+                        <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 13, color: 'var(--accent)' }}>+1</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* resolution order */}
+              <div>
+                <div className="t-eyebrow t-eyebrow-accent" style={{ marginBottom: 8 }}>Resolves in order</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {steps.map(s => (
+                    <div key={s.n} style={{ display: 'grid', gridTemplateColumns: '18px 1fr', gap: 8, alignItems: 'baseline' }}>
+                      <span style={{ width: 18, height: 18, display: 'grid', placeItems: 'center', background: 'var(--ink)', color: 'var(--paper)', fontFamily: 'var(--font-mono)', fontSize: 9, lineHeight: 1 }}>
+                        {s.n}
+                      </span>
+                      <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11.5, color: 'var(--ink-2)', lineHeight: 1.3 }}>
+                        {s.label}
+                        {s.detail && <span style={{ color: 'var(--ink-3)' }}> · {s.detail}</span>}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ flex: 1 }} />
+
+              {/* totals footer */}
+              <div style={{ borderTop: '2px solid var(--ink)', paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                  <span className="t-eyebrow" style={{ color: 'var(--ink-3)' }}>Excitement gained</span>
+                  <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 22, color: 'var(--excite)', fontVariantNumeric: 'tabular-nums' }}>
+                    +{card?.excitement ?? 0}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                  <span className="t-eyebrow" style={{ color: 'var(--ink-3)' }}>Coins after</span>
+                  <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 15, color: 'var(--ink)', fontVariantNumeric: 'tabular-nums' }}>
+                    {player.coins}<span style={{ color: 'var(--ink-3)' }}> → </span>
+                    <span style={{ color: balanceAfter < 0 ? 'var(--accent)' : 'var(--ink)' }}>{balanceAfter}</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Modal>
+    );
+  }
+
+  // Phase 1: select card + grid position
+  return (
+    <Modal title="Book a Card" eyebrow="Action · Book" width={700}>
       <div style={{ marginBottom: 16 }}>
         <div className="section-label" style={{ marginBottom: 8 }}>Your Hand ({player.hand.length} cards)</div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -213,15 +337,8 @@ function BookTarget({ pa, player, sendAction, gameState }) {
 
       {selectedCard && (
         <>
-          {!isVenue && (
-            <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--ink-2)', cursor: 'pointer' }}>
-              <input type="checkbox" checked={diy} onChange={e => setDiy(e.target.checked)} />
-              Book as DIY (free — no elements, no excitement, no When Booked)
-            </label>
-          )}
-
           <div className="section-label" style={{ marginBottom: 8 }}>
-            Choose position {isVenue ? '(center only)' : ''}
+            Choose position {isVenue ? '(venue goes center only)' : ''}
           </div>
           <div style={{ display: 'inline-block' }}>
             <WeddingGrid
@@ -232,15 +349,9 @@ function BookTarget({ pa, player, sendAction, gameState }) {
               onCellClick={(pos) => { if (validPositions.includes(pos)) setSelectedPos(pos); }}
             />
           </div>
-
-          {selectedPos !== null && (
-            <div style={{ marginTop: 12, padding: '8px 12px', background: 'var(--paper-deep)', border: '1.5px solid var(--ink-line-2)', fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--ink-2)' }}>
-              Cell {selectedPos + 1} · Bonus: <strong style={{ color: 'var(--accent)', fontFamily: 'var(--font-display)' }}>{GRID_BONUS[selectedPos]}</strong>
-              {!diy && card && player.coins < effectiveCost(card) && (
-                <span style={{ color: 'var(--accent)', marginLeft: 12 }}>Not enough coins (have {player.coins}, need {effectiveCost(card)})</span>
-              )}
-            </div>
-          )}
+          <div style={{ marginTop: 12, fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: 13, color: 'var(--ink-3)' }}>
+            Select a highlighted cell to continue.
+          </div>
         </>
       )}
     </Modal>
