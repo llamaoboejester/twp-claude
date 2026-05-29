@@ -172,7 +172,7 @@ function BookTarget({ pa, player, sendAction, gameState }) {
       { n: 1, label: 'Advance theme element trackers', detail: elements.map(e => e.charAt(0).toUpperCase() + e.slice(1)).join(' · ') || '—' },
       { n: 2, label: 'Advance excitement', detail: `+${card?.excitement ?? 0}` },
       { n: 3, label: 'Check all 3 active Moments', detail: null },
-      ...(card?.whenBooked ? [{ n: 4, label: 'Resolve When Booked', detail: card.whenBooked }] : []),
+      ...(card?.whenBooked ? [{ n: 4, label: 'Resolve When Booked', detail: describeEffect(card.whenBooked) }] : []),
       { n: card?.whenBooked ? 5 : 4, label: 'Resolve grid bonus', detail: GRID_BONUS[selectedPos] },
     ];
 

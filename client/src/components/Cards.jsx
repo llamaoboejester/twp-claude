@@ -1,6 +1,20 @@
 import React from 'react';
 import { CATEGORY_TONE, CATEGORY_SLUG, WeatherIcon } from './Icons';
 
+// whenBooked is stored server-side as an effect object, not a string.
+function describeWhenBooked(wb) {
+  if (!wb) return null;
+  if (typeof wb === 'string') return wb;
+  switch (wb.type) {
+    case 'gain_coins':    return `Gain ${wb.amount} coin${wb.amount !== 1 ? 's' : ''}`;
+    case 'gain_gifts':    return `Gain ${wb.amount} gift${wb.amount !== 1 ? 's' : ''}`;
+    case 'gain_cards':    return `Draw ${wb.count} ${wb.deckType} card${wb.count !== 1 ? 's' : ''}`;
+    case 'apply_effort':  return `Apply ${wb.amount} effort${wb.restriction ? ' (starred tasks)' : ''}`;
+    case 'gain_fvr_card': return 'Take 1 card from FVR';
+    default: return wb.type || String(wb);
+  }
+}
+
 // ——————————————————————————————————————————————————
 // PRIMITIVES
 // ——————————————————————————————————————————————————
@@ -295,7 +309,7 @@ export function VendorCardDetail({
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--accent)', marginRight: 6 }}>
               When booked
             </span>
-            {whenBooked}
+            {describeWhenBooked(whenBooked)}
           </div>
         )}
         <div style={{ flex: 1 }} />
@@ -451,7 +465,7 @@ export function VenueCardDetail({
         {whenBooked && (
           <div style={{ fontFamily: 'var(--font-sans)', fontSize: 12, lineHeight: 1.4, color: 'var(--ink-2)', borderTop: '1px solid var(--ink-line-2)', paddingTop: 8 }}>
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--accent)', marginRight: 6 }}>When booked</span>
-            {whenBooked}
+            {describeWhenBooked(whenBooked)}
           </div>
         )}
         <div style={{ flex: 1 }} />
