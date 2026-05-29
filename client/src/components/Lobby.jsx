@@ -151,18 +151,27 @@ export default function Lobby() {
               </div>
 
               <div>
-                <div className="section-label" style={{ marginBottom: 8 }}>Optional Modules · {Object.values(modules).filter(Boolean).length} of 5 active</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {MODULE_OPTIONS.map(m => (
-                    <label key={m.key} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 12, alignItems: 'center', padding: '10px 14px', background: 'var(--paper-soft)', border: '1.5px solid var(--ink-line-2)', cursor: 'pointer' }}>
-                      <span style={{ width: 18, height: 18, background: modules[m.key] ? 'var(--ink)' : 'var(--paper-soft)', border: '1.5px solid var(--ink)', display: 'grid', placeItems: 'center' }}>
-                        {modules[m.key] && <span style={{ color: 'var(--coin)', fontSize: 12 }}>✓</span>}
-                      </span>
-                      <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 13, letterSpacing: '0.10em', textTransform: 'uppercase', color: 'var(--ink)' }}>{m.label}</span>
-                      <span className="t-eyebrow" style={{ color: 'var(--ink-3)' }}>{m.desc}</span>
-                      <input type="checkbox" checked={!!modules[m.key]} onChange={() => toggleModule(m.key)} style={{ display: 'none' }} />
-                    </label>
-                  ))}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                  <div className="section-label">Optional Modules</div>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--paper)', background: 'var(--ink)', padding: '3px 8px' }}>
+                    Coming Soon
+                  </span>
+                </div>
+                <div style={{ position: 'relative' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, opacity: 0.45, pointerEvents: 'none', filter: 'grayscale(0.4)' }}>
+                    {MODULE_OPTIONS.map(m => (
+                      <div key={m.key} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 12, alignItems: 'center', padding: '10px 14px', background: 'var(--paper-soft)', border: '1.5px solid var(--ink-line-2)' }}>
+                        <span style={{ width: 18, height: 18, background: 'var(--paper-soft)', border: '1.5px solid var(--ink)', display: 'grid', placeItems: 'center' }} />
+                        <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 13, letterSpacing: '0.10em', textTransform: 'uppercase', color: 'var(--ink)' }}>{m.label}</span>
+                        <span className="t-eyebrow" style={{ color: 'var(--ink-3)' }}>{m.desc}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none' }}>
+                    <span style={{ transform: 'rotate(-5deg)', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 22, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'var(--ink)', background: 'var(--coin)', border: '2px solid var(--ink)', padding: '8px 20px', boxShadow: '4px 4px 0 var(--ink)' }}>
+                      Coming Soon
+                    </span>
+                  </div>
                 </div>
               </div>
 

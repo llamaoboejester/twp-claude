@@ -5,6 +5,18 @@ import { CATEGORY_TONE, CATEGORY_SLUG } from './Icons';
 import { adaptCard, adaptGridCell } from './stateAdapters';
 import { TASK_DEFS } from '../data/taskDefs';
 
+const GOAL_TIER_VALUES = {
+  theme:      { unforgettable: 30, thematic: 20, coordinated: 15, subtle: 10 },
+  budget:     { extravagant: 15, refined: 10, modest: 5 },
+  excitement: { spectacular: 15, vibrant: 10, intimate: 5 },
+};
+
+function goalDisplayValue(g) {
+  if (!g) return null;
+  if (g.type === 'guest') return null; // varies by count at scoring time
+  return GOAL_TIER_VALUES[g.type]?.[g.tier] ?? null;
+}
+
 const GRID_BONUS = {
   0: 'Research', 1: 'Plan', 2: 'Book',
   3: 'Help',     4: 'Any',  5: 'Help',
@@ -255,13 +267,12 @@ export function VisionBoard({ theme = null, themeOptions = null, goals = [], com
         )}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {[1, 2, 3].map(n => {
-            const g = goals.find(x => x.checkIn === n || (x.type && n === goals.indexOf(x) + 1));
+            const g = goals.find(x => x.checkIn === n);
             if (g) {
               return (
-                <div key={n} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 8, alignItems: 'center', border: '1.5px solid var(--ink)', padding: '6px 8px', background: 'var(--paper-deep)' }}>
-                  <span className="t-eyebrow" style={{ color: 'var(--ink-3)', whiteSpace: 'nowrap' }}>Check-In {n}</span>
+                <div key={n} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'center', border: '1.5px solid var(--ink)', padding: '6px 10px', background: 'var(--paper-deep)' }}>
                   <div>
-                    <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink)' }}>
+                    <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink)' }}>
                       {g.type}
                     </div>
                     <div style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: 13, color: 'var(--ink-2)', lineHeight: 1 }}>
@@ -269,14 +280,13 @@ export function VisionBoard({ theme = null, themeOptions = null, goals = [], com
                     </div>
                   </div>
                   <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 18, color: 'var(--gift)', fontVariantNumeric: 'tabular-nums' }}>
-                    +{g.value ?? g.gifts ?? '?'}
+                    {goalDisplayValue(g) != null ? `+${goalDisplayValue(g)}` : ''}
                   </div>
                 </div>
               );
             }
             return (
-              <div key={n} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 8, alignItems: 'center', border: '1.5px dashed var(--ink-line-2)', padding: '6px 8px', color: 'var(--ink-3)' }}>
-                <span className="t-eyebrow" style={{ color: 'var(--ink-3)', whiteSpace: 'nowrap' }}>Check-In {n}</span>
+              <div key={n} style={{ display: 'flex', alignItems: 'center', border: '1.5px dashed var(--ink-line-2)', padding: '8px 10px', color: 'var(--ink-3)' }}>
                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Goal not yet set</span>
               </div>
             );

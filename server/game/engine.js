@@ -1155,7 +1155,7 @@ class GameEngine {
         return { success: false, error: 'You already have a goal of this type' };
       }
 
-      const goal = { type: goalType, tier: tier || null, guestCategory: guestCategory || null };
+      const goal = { type: goalType, tier: tier || null, guestCategory: guestCategory || null, checkIn: ci.checkInNumber };
       player.goals.push(goal);
       ci.goalChoices[playerId] = goal;
       ci.pendingPlayers = ci.pendingPlayers.filter(pid => pid !== playerId);
