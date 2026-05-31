@@ -1,283 +1,236 @@
 import React, { useState } from 'react';
 import { useGame } from '../context/GameContext';
-import PlayerBoard from './PlayerBoard';
-import SharedBoard from './SharedBoard';
-import ActionPanel from './ActionPanel';
+import { MonthTimeline, ExcitementStripWide, FVR, MomentsAwardsRow, HelpDecks, DeckColumn } from './SharedBoard';
+import { WeddingGrid, HandStrip, ActionDock, PlayerChrome, VisionBoard, ThemeTrackerStack, HelperSlots, TaskWorksheet } from './PlayerBoard';
 import OtherPlayers from './OtherPlayers';
+import ActionPanel from './ActionPanel';
 import CheckIn from './CheckIn';
+import { CardDetailModal } from './Cards';
+import { adaptCard, adaptGridCell, adaptMeepleAt, adaptHelpers } from './stateAdapters';
 import '../styles.css';
 
 export default function Game() {
-  const { gameState, playerId, isMyTurn, isCheckinActive, isMyCheckinTurn, error, clearError } = useGame();
-  const [viewTab, setViewTab] = useState('board');
+  const { gameState, playerId, isMyTurn, isCheckinActive, isMyCheckinTurn, error, clearError, sendAction } = useGame();
+  const [zoomCard, setZoomCard] = useState(null);
 
   if (!gameState) return null;
 
-  const { month, quarter, playerOrder, currentPlayerIndex, log } = gameState;
+  const { month, quarter, playerOrder, currentPlayerIndex, shared } = gameState;
   const currentPid = playerOrder[currentPlayerIndex];
   const currentPlayerName = gameState.players[currentPid]?.name;
   const myPlayer = gameState.players[playerId];
+  const isMyTurnAct = isMyTurn && !isCheckinActive;
+
+  // Adapt shared state for design components
+  const fvrCards = shared.fvr || [];
+  const moments = shared.moments || [];
+  const raceAward = shared.raceAward ? {
+    name: shared.raceAward.name,
+    condition: shared.raceAward.description || 'First player to achieve.',
+    value: 7,
+    earnedBy: (shared.raceAwardWinners || []).map(pid => gameState.players[pid]?.name).filter(Boolean).join(', ') || null,
+  } : null;
+  const endgameAward = shared.endgameAward ? {
+    name: shared.endgameAward.name,
+    condition: shared.endgameAward.description || 'At end of game.',
+    value: 5,
+  } : null;
+  const helpDecks = {
+    Money: (shared.helpDecks?.money?.length ?? 0),
+    Effort: (shared.helpDecks?.effort?.length ?? 0),
+    Research: (shared.helpDecks?.research?.length ?? 0),
+  };
+  const topVendorCategory = shared.topVendorCategory || 'Photography';
+  const vendorDeckSize = shared.vendorDeckSize ?? shared.vendorDeck?.length ?? 0;
+  const venueDeckSize = shared.venueDeckSize ?? shared.venueDeck?.length ?? 0;
+
+  // Build completedBy map: momentIndex → array of player names who completed it
+  const completedBy = {};
+  moments.forEach((m, i) => {
+    const status = shared.momentStatus?.[m.id];
+    if (status?.completedBy?.length > 0) {
+      completedBy[i] = status.completedBy.map(pid => gameState.players[pid]?.name || pid);
+    }
+  });
+
+  // My player adapted state
+  const myGrid = (myPlayer?.grid || []).map(adaptGridCell);
+  const myHand = (myPlayer?.hand || []);
+  const myHelpers = adaptHelpers(myPlayer?.helpers || []);
+  const themePositions = myPlayer?.themeElements || { whimsy: 0, edge: 0, nature: 0, tradition: 0, elegance: 0 };
+  const meepleAt = adaptMeepleAt(myPlayer?.meeplePosition);
+  const completedCount = myPlayer?.completedTasksCount ?? 0;
+
+  // Theme options for VisionBoard pre-CI1
+  const themeOptions = (!myPlayer?.theme && myPlayer?.themeCards && myPlayer.themeCards.length > 0 && !myPlayer.themeCards[0]?.hidden)
+    ? myPlayer.themeCards.map(c => ({ name: c.name, elements: c.elements }))
+    : null;
+
+  // Mirror server-side availability checks so the dock disables correctly.
+  const openMarket = shared.checkin3Event?.effect?.type === 'open_market';
+  const hasFvrCards = (shared.fvr || []).some(Boolean);
+  const hasExclusiveVenue = myPlayer?.plannerContracted && !myPlayer?.grid[4]
+    && !!myPlayer?.plannerContract?.exclusiveVenue;
+  const canBook = (myPlayer?.hand?.length > 0) || hasExclusiveVenue || (openMarket && hasFvrCards);
+  const canHelp = (myPlayer?.helpers?.length ?? 0) < 3;
+  const availableActions = ['Research', 'Book', 'Plan', 'Help'].filter(a => {
+    if (a === 'Book') return canBook;
+    if (a === 'Help') return canHelp;
+    return true;
+  });
+
+  function handleActionChoose(action) {
+    if (!isMyTurnAct) return;
+    sendAction({ type: 'SELECT_ACTION', payload: { action: action.toLowerCase() } });
+  }
 
   return (
-    <div style={styles.layout}>
-      {/* Top bar */}
-      <div style={styles.topBar}>
-        <div style={styles.topLeft}>
-          <span style={styles.gameName}>The Wedding Planner</span>
-          <span style={styles.monthBadge}>Month {month}</span>
-          <span style={styles.quarterBadge}>Q{quarter}</span>
-        </div>
-        <div style={styles.topCenter}>
-          {isCheckinActive && isMyCheckinTurn
-            ? <span style={{ color: 'var(--accent2)', fontWeight: 700 }}>Check-In {gameState.checkinState.checkInNumber} — Your turn to act</span>
-            : isCheckinActive
-            ? <span style={{ color: 'var(--text-dim)' }}>Check-In {gameState.checkinState.checkInNumber} in progress…</span>
-            : isMyTurn
-            ? <span style={{ color: 'var(--success)', fontWeight: 700 }}>Your turn</span>
-            : <span style={{ color: 'var(--text-dim)' }}>Waiting for {currentPlayerName}…</span>
-          }
-        </div>
-        <div style={styles.topRight}>
-          <span style={{ fontSize: 13, color: 'var(--text-dim)' }}>
-            {myPlayer?.name} · {myPlayer?.coins}¢ · {myPlayer?.gifts} gifts
-          </span>
-        </div>
-      </div>
+    <div style={{ minWidth: 1440, background: 'var(--paper)', color: 'var(--ink)', minHeight: '100vh', position: 'relative' }}>
+      {/* PAGE HEADER */}
+      <PageHeader
+        month={month}
+        quarter={quarter}
+        activePlayer={isCheckinActive ? null : currentPlayerName}
+        isMyTurn={isMyTurnAct}
+        isCheckinActive={isCheckinActive}
+        myName={myPlayer?.name}
+        checkInNumber={gameState.checkinState?.checkInNumber}
+      />
 
       {error && (
-        <div className="error-banner" style={{ margin: '8px 16px', flexShrink: 0 }}>
+        <div className="error-banner" style={{ margin: '8px 28px' }}>
           {error}
           <button className="btn btn-ghost" style={{ marginLeft: 'auto', padding: '2px 8px' }} onClick={clearError}>✕</button>
         </div>
       )}
 
-      {/* Main content */}
-      <div style={styles.main}>
-        {/* Left: player's own board */}
-        <div style={styles.leftPane}>
-          <div style={styles.tabRow}>
-            {['board', 'tasks', 'log'].map(t => (
-              <button key={t} className={`btn ${viewTab === t ? 'btn-secondary' : 'btn-ghost'}`}
-                style={{ fontSize: 12 }} onClick={() => setViewTab(t)}>
-                {t === 'board' ? 'My Board' : t === 'tasks' ? 'Tasks' : 'Log'}
-              </button>
-            ))}
+      <div style={{ padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {/* FULL-WIDTH: TIMELINE + EXCITEMENT */}
+        <MonthTimeline currentMonth={month} />
+        <ExcitementStripWide position={myPlayer?.excitement ?? 0} />
+
+        {/* THREE COLUMNS */}
+        <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr 380px', gap: 18, alignItems: 'flex-start' }}>
+
+          {/* LEFT COLUMN */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <HelpDecks decks={helpDecks} />
+            <DeckColumn vendorTopCategory={topVendorCategory} vendorRemaining={vendorDeckSize} venueRemaining={venueDeckSize} />
+            <HelperSlots slots={myHelpers} />
           </div>
 
-          {viewTab === 'board' && <PlayerBoard />}
-          {viewTab === 'tasks' && <TasksTab />}
-          {viewTab === 'log'   && <LogTab log={log} />}
-        </div>
+          {/* CENTER COLUMN */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <PlayerChrome
+              name={myPlayer?.name || 'You'}
+              isYou={true}
+              isActive={isMyTurnAct}
+              coins={myPlayer?.coins ?? 0}
+              gifts={myPlayer?.gifts ?? 0}
+              isFirstPlayer={playerOrder[0] === playerId}
+            />
+            <MomentsAwardsRow
+              moments={moments}
+              awards={{ race: raceAward, endgame: endgameAward }}
+              completedBy={completedBy}
+              onZoom={setZoomCard}
+            />
+            <FVR
+              cards={fvrCards}
+              cardW={124}
+              onZoom={setZoomCard}
+            />
 
-        {/* Center: shared board + action panel */}
-        <div style={styles.centerPane}>
-          <SharedBoard />
-          {isCheckinActive
-            ? <CheckIn />
-            : (isMyTurn && <ActionPanel />)
-          }
-        </div>
+            {/* WEDDING GRID */}
+            <div style={{ background: 'var(--paper-soft)', border: '2px solid var(--ink)', padding: 14, boxShadow: '3px 3px 0 var(--ink)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
+                <div className="t-eyebrow t-eyebrow-accent">Your Wedding Grid</div>
+                <div className="t-eyebrow" style={{ color: 'var(--ink-3)' }}>Center: venue only</div>
+              </div>
+              <div style={{ display: 'grid', placeItems: 'center' }}>
+                <WeddingGrid cells={myPlayer?.grid || []} cellSize={156} showBonusLabels onZoom={setZoomCard} />
+              </div>
+            </div>
 
-        {/* Right: other players */}
-        <div style={styles.rightPane}>
-          <OtherPlayers />
+            <HandStrip cards={myHand} cardW={124} onZoom={setZoomCard} />
+            <ActionDock meepleAt={meepleAt} available={availableActions} onChoose={isMyTurnAct && !gameState.pendingAction ? handleActionChoose : null} />
+          </div>
+
+          {/* RIGHT COLUMN */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <VisionBoard
+              theme={myPlayer?.theme}
+              themeOptions={themeOptions}
+              goals={myPlayer?.goals || []}
+              onZoom={setZoomCard}
+            />
+            <ThemeTrackerStack positions={themePositions} />
+            <TaskWorksheet player={myPlayer} month={month} completedCount={completedCount} />
+            <OtherPlayers />
+          </div>
         </div>
       </div>
+
+      {/* PENDING ACTION MODAL */}
+      {isMyTurn && <ActionPanel />}
+
+      {/* CHECK-IN OVERLAY */}
+      {isCheckinActive && <CheckIn />}
+
+      {/* CARD ZOOM MODAL */}
+      {zoomCard && <CardDetailModal card={zoomCard} onClose={() => setZoomCard(null)} />}
     </div>
   );
 }
 
-function TasksTab() {
-  const { gameState, playerId, sendAction, isMyTurn } = useGame();
-  const player = gameState?.players[playerId];
-  const month = gameState?.month;
-
-  if (!player) return null;
-
-  const SECTIONS = ['getting_started', 'making_it_yours', 'putting_together', 'locking_in'];
-  const SECTION_LABELS = {
-    getting_started: 'Getting Started',
-    making_it_yours: 'Making It Yours',
-    putting_together: 'Putting It Together',
-    locking_in: 'Locking It In',
-  };
-
-  return (
-    <div style={{ padding: 12, overflowY: 'auto', flex: 1 }}>
-      <div style={{ marginBottom: 8 }}>
-        <span style={{ fontWeight: 700 }}>Tasks Completed: {player.completedTasksCount}</span>
-        <span style={{ color: 'var(--text-dim)', fontSize: 12, marginLeft: 8 }}>
-          (milestones at 4, 8, 10, 12, 16, 20)
-        </span>
-      </div>
-      {SECTIONS.map(section => {
-        const tasks = Object.entries(player.taskWorksheet).filter(([tid]) => {
-          const def = TASK_DEFS.find(t => t.id === tid);
-          return def && def.section === section;
-        });
-        if (tasks.length === 0) return null;
-        return (
-          <div key={section} style={{ marginBottom: 16 }}>
-            <div className="section-label">{SECTION_LABELS[section]}</div>
-            {tasks.map(([tid, ws]) => {
-              const def = TASK_DEFS.find(t => t.id === tid);
-              if (!def) return null;
-              return <TaskRow key={tid} def={def} ws={ws} player={player} month={month} />;
-            })}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function TaskRow({ def, ws, player, month }) {
-  const locked = !isUnlocked(def, player, month);
+function PageHeader({ month, quarter, activePlayer, isMyTurn, isCheckinActive, myName, checkInNumber }) {
   return (
     <div style={{
-      padding: '6px 8px',
-      marginBottom: 4,
-      borderRadius: 6,
-      background: ws.completed ? '#4caf5015' : locked ? '#88888815' : 'var(--surface2)',
-      border: `1px solid ${ws.completed ? '#4caf5040' : 'var(--border)'}`,
-      opacity: locked ? 0.5 : 1,
+      background: 'var(--paper-soft)',
+      borderBottom: '2px solid var(--ink)',
+      padding: '12px 28px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: 24,
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        {def.key && <span className="badge" style={{ background: '#ff980020', color: '#ff9800', fontSize: 10 }}>KEY</span>}
-        {def.starred && <span style={{ color: 'var(--text-dim)', fontSize: 11 }}>★</span>}
-        <span style={{ fontSize: 13, fontWeight: ws.completed ? 400 : 600,
-          textDecoration: ws.completed ? 'line-through' : 'none', color: ws.completed ? 'var(--text-dim)' : 'var(--text)' }}>
-          {def.name}
-        </span>
-        <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--accent2)' }}>+{def.gifts} gifts</span>
+      <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 22, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--ink)', lineHeight: 1 }}>
+        The Wedding<span style={{ color: 'var(--accent)' }}> Planner</span>
       </div>
-      <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
-        {Array.from({ length: def.effortRequired }).map((_, i) => (
-          <div key={i} style={{
-            width: 14, height: 14, borderRadius: 3,
-            background: i < ws.effortApplied ? 'var(--success)' : 'var(--border)',
-            border: '1px solid var(--border)',
-          }} />
-        ))}
-        {locked && (
-          <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--text-dim)' }}>
-            🔒 {getLockReason(def, player, month)}
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
+      <div style={{ flex: 1 }} />
 
-function isUnlocked(def, player, month) {
-  for (const cond of def.lockConditions) {
-    if (cond.type === 'month_min' && month < cond.month) return false;
-    if (cond.type === 'venue_booked' && !player.grid[4]) return false;
-    if (cond.type === 'vendor_booked') {
-      if (!player.grid.some(c => c && c.type === 'vendor' && c.category === cond.category)) return false;
-    }
-    if (cond.type === 'task_completed') {
-      if (!player.completedTaskIds.includes(cond.taskId)) return false;
-    }
-  }
-  return true;
-}
-
-function getLockReason(def, player, month) {
-  for (const cond of def.lockConditions) {
-    if (cond.type === 'month_min' && month < cond.month) return `Available month ${cond.month}`;
-    if (cond.type === 'venue_booked' && !player.grid[4]) return 'Need venue booked';
-    if (cond.type === 'vendor_booked') {
-      if (!player.grid.some(c => c && c.type === 'vendor' && c.category === cond.category))
-        return `Need ${cond.category} booked`;
-    }
-    if (cond.type === 'task_completed') {
-      if (!player.completedTaskIds.includes(cond.taskId)) {
-        return `Complete ${TASK_DEFS.find(t => t.id === cond.taskId)?.name || cond.taskId} first`;
-      }
-    }
-  }
-  return '';
-}
-
-import { TASK_DEFS } from '../data/taskDefs';
-export { TASK_DEFS };
-
-function LogTab({ log }) {
-  if (!log || log.length === 0) {
-    return <div style={{ padding: 16, color: 'var(--text-dim)', fontSize: 13 }}>No events yet.</div>;
-  }
-  return (
-    <div style={{ padding: 12, overflowY: 'auto', flex: 1 }}>
-      {[...log].reverse().map((entry, i) => (
-        <div key={i} style={{ fontSize: 12, color: 'var(--text-dim)', padding: '3px 0',
-          borderBottom: '1px solid var(--border)' }}>
-          {entry.message}
+      {/* Status */}
+      <div style={{ textAlign: 'center' }}>
+        <div className="t-eyebrow" style={{ color: 'var(--ink-3)' }}>
+          {isCheckinActive ? `Check-In ${checkInNumber}` : 'Active turn'}
         </div>
-      ))}
+        <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 18, letterSpacing: '0.08em', textTransform: 'uppercase', color: isCheckinActive ? 'var(--coin)' : (isMyTurn ? 'var(--accent)' : 'var(--ink)'), lineHeight: 1 }}>
+          {isCheckinActive ? 'Pause' : (isMyTurn ? 'Your Turn' : (activePlayer || '…'))}
+        </div>
+      </div>
+
+      <div style={{ width: 1, height: 32, background: 'var(--ink-line-2)' }} />
+
+      <div>
+        <div className="t-eyebrow" style={{ color: 'var(--ink-3)' }}>Quarter</div>
+        <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 18, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--ink)', lineHeight: 1 }}>Q{quarter}</div>
+      </div>
+
+      <div>
+        <div className="t-eyebrow" style={{ color: 'var(--ink-3)' }}>Month</div>
+        <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 22, color: 'var(--ink)', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
+          {String(month).padStart(2, '0')}<span style={{ color: 'var(--ink-3)', fontSize: 14 }}>/12</span>
+        </div>
+      </div>
+
+      {myName && (
+        <>
+          <div style={{ width: 1, height: 32, background: 'var(--ink-line-2)' }} />
+          <div>
+            <div className="t-eyebrow" style={{ color: 'var(--ink-3)' }}>Playing as</div>
+            <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 16, color: 'var(--ink)', letterSpacing: '0.06em', textTransform: 'uppercase', lineHeight: 1 }}>{myName}</div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
-
-const styles = {
-  layout: {
-    display: 'flex',
-    flexDirection: 'column',
-    height: '100vh',
-    background: 'var(--bg)',
-    overflow: 'hidden',
-  },
-  topBar: {
-    display: 'flex',
-    alignItems: 'center',
-    padding: '8px 16px',
-    background: 'var(--surface)',
-    borderBottom: '1px solid var(--border)',
-    flexShrink: 0,
-    gap: 12,
-  },
-  topLeft: { display: 'flex', alignItems: 'center', gap: 10, flex: 1 },
-  topCenter: { flex: 2, textAlign: 'center', fontSize: 14 },
-  topRight: { flex: 1, textAlign: 'right' },
-  gameName: { fontWeight: 700, color: 'var(--accent)', fontSize: 16 },
-  monthBadge: {
-    background: 'var(--surface2)', borderRadius: 6, padding: '2px 10px',
-    fontSize: 13, fontWeight: 600,
-  },
-  quarterBadge: {
-    background: 'var(--surface2)', borderRadius: 6, padding: '2px 8px',
-    fontSize: 12, color: 'var(--text-dim)',
-  },
-  main: {
-    display: 'flex',
-    flex: 1,
-    overflow: 'hidden',
-    gap: 0,
-  },
-  leftPane: {
-    width: 360,
-    flexShrink: 0,
-    display: 'flex',
-    flexDirection: 'column',
-    borderRight: '1px solid var(--border)',
-    overflow: 'hidden',
-  },
-  centerPane: {
-    flex: 1,
-    display: 'flex',
-    flexDirection: 'column',
-    overflow: 'hidden',
-  },
-  rightPane: {
-    width: 280,
-    flexShrink: 0,
-    borderLeft: '1px solid var(--border)',
-    overflow: 'hidden',
-  },
-  tabRow: {
-    display: 'flex',
-    gap: 4,
-    padding: '8px 8px 0',
-    flexShrink: 0,
-  },
-};

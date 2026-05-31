@@ -160,7 +160,7 @@ class GameEngine {
     const playerIds = s.playerOrder;
     const count = playerIds.length;
 
-    if (count < 2) return { success: false, error: 'Need at least 2 players' };
+    if (count < 1) return { success: false, error: 'Need at least 1 player' };
     if (s.phase !== 'lobby') return { success: false, error: 'Game already started' };
 
     const allVendors = shuffle([...VENDOR_CARDS]);
@@ -1155,7 +1155,7 @@ class GameEngine {
         return { success: false, error: 'You already have a goal of this type' };
       }
 
-      const goal = { type: goalType, tier: tier || null, guestCategory: guestCategory || null };
+      const goal = { type: goalType, tier: tier || null, guestCategory: guestCategory || null, checkIn: ci.checkInNumber };
       player.goals.push(goal);
       ci.goalChoices[playerId] = goal;
       ci.pendingPlayers = ci.pendingPlayers.filter(pid => pid !== playerId);

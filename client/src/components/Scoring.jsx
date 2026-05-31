@@ -1,6 +1,5 @@
 import React from 'react';
 import { useGame } from '../context/GameContext';
-import VendorGrid from './VendorGrid';
 import '../styles.css';
 
 export default function Scoring() {
@@ -9,21 +8,17 @@ export default function Scoring() {
 
   const { players, playerOrder, scoring } = gameState;
 
-  // Determine winner(s)
   const eligiblePlayers = playerOrder.filter(pid => players[pid].grid[4] !== null);
   const ineligible = playerOrder.filter(pid => players[pid].grid[4] === null);
 
   const sorted = [...eligiblePlayers].sort((a, b) => {
     const ga = players[a].gifts, gb = players[b].gifts;
     if (gb !== ga) return gb - ga;
-    // Tiebreaker 1: most vendors booked
     const va = players[a].grid.filter(c => c && c.type === 'vendor').length;
     const vb = players[b].grid.filter(c => c && c.type === 'vendor').length;
     if (vb !== va) return vb - va;
-    // Tiebreaker 2: most tasks completed
     const ta = players[a].completedTasksCount, tb = players[b].completedTasksCount;
     if (tb !== ta) return tb - ta;
-    // Tiebreaker 3: highest excitement
     return players[b].excitement - players[a].excitement;
   });
 
@@ -31,137 +26,127 @@ export default function Scoring() {
   const winners = sorted.filter(pid => players[pid].gifts === topScore);
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)', padding: 24 }}>
-      <div style={{ maxWidth: 900, margin: '0 auto' }}>
-        <h1 style={{ textAlign: 'center', color: 'var(--accent)', fontSize: 32, marginBottom: 4 }}>
-          Game Over!
-        </h1>
-        <p style={{ textAlign: 'center', color: 'var(--text-dim)', marginBottom: 32 }}>
-          Month 12 complete — final scores
-        </p>
+    <div style={{ minWidth: 1440, minHeight: '100vh', background: 'var(--paper)', color: 'var(--ink)' }}>
+      {/* Header */}
+      <div style={{ background: 'var(--paper-soft)', borderBottom: '2px solid var(--ink)', padding: '12px 28px', display: 'flex', alignItems: 'center' }}>
+        <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 22, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--ink)', lineHeight: 1 }}>
+          The Wedding<span style={{ color: 'var(--accent)' }}> Planner</span>
+        </div>
+      </div>
 
-        {/* Winners banner */}
-        {winners.length > 0 && (
-          <div style={{
-            background: 'rgba(233,69,96,0.15)', border: '2px solid var(--accent)',
-            borderRadius: 12, padding: '20px 24px', marginBottom: 24, textAlign: 'center',
-          }}>
-            <div style={{ fontSize: 14, color: 'var(--text-dim)', marginBottom: 4 }}>
-              {winners.length > 1 ? 'Winners (tied)' : 'Winner'}
-            </div>
-            <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--accent)' }}>
-              {winners.map(pid => players[pid].name).join(' & ')}
-            </div>
-            <div style={{ fontSize: 18, color: 'var(--accent2)', marginTop: 4 }}>
-              {topScore} gifts 🎁
-            </div>
+      <div style={{ padding: '48px 64px' }}>
+        {/* Hero */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 32 }}>
+          <div>
+            <div className="t-eyebrow t-eyebrow-accent">End of Month 12 · Final Scoring</div>
+            <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 96, lineHeight: 0.9, letterSpacing: '-0.01em', textTransform: 'uppercase', margin: '12px 0 0', color: 'var(--ink)' }}>
+              The <span style={{ color: 'var(--accent)' }}>Reception.</span>
+            </h1>
           </div>
-        )}
+          <div style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: 20, color: 'var(--ink-2)', textAlign: 'right', maxWidth: 340 }}>
+            Gifts unwrapped. Photos in. Cake counted.<br/>The winner takes everything.
+          </div>
+        </div>
 
-        {/* Ineligible players */}
+        {/* Ineligible warning */}
         {ineligible.length > 0 && (
-          <div style={{
-            background: 'rgba(255,152,0,0.1)', border: '1px solid var(--warn)',
-            borderRadius: 8, padding: '10px 16px', marginBottom: 20, fontSize: 13,
-          }}>
-            <strong style={{ color: 'var(--warn)' }}>Cannot win (no venue booked): </strong>
-            {ineligible.map(pid => players[pid].name).join(', ')}
+          <div style={{ marginBottom: 24, padding: '12px 18px', background: 'var(--paper-deep)', border: '2px solid var(--ink)', boxShadow: '3px 3px 0 var(--ink)', display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink)' }}>Cannot win (no venue booked):</span>
+            <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: 16, color: 'var(--ink-2)' }}>{ineligible.map(pid => players[pid].name).join(', ')}</span>
           </div>
         )}
 
-        {/* Score breakdown per player */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {/* Player cards */}
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(sorted.length + ineligible.length, 3)}, 1fr)`, gap: 24 }}>
           {sorted.concat(ineligible).map((pid, rank) => {
             const p = players[pid];
             const isWinner = winners.includes(pid);
             const isIneligible = ineligible.includes(pid);
             const breakdown = scoring?.[pid] || {};
 
+            const breakdownItems = [
+              { label: 'In-play gifts', sub: 'from Moments, Tasks, Race Awards', value: p.gifts - (p.excitement || 0) - (Object.values(breakdown.goals || {}).reduce((a, b) => a + b, 0)) - (breakdown.balanced || 0) - (breakdown.endgameAward || 0) },
+              { label: 'Excitement', sub: `1 gift per excitement, final ${p.excitement}`, value: p.excitement || 0 },
+              ...Object.entries(breakdown.goals || {}).map(([type, gifts]) => ({
+                label: `Goal · ${type.charAt(0).toUpperCase() + type.slice(1)}`, sub: 'check-in goal', value: gifts,
+              })),
+              ...(breakdown.balanced > 0 ? [{ label: 'Balanced bonus', sub: 'theme elements equal', value: breakdown.balanced }] : []),
+              ...(breakdown.raceAward > 0 ? [{ label: 'Race Award', sub: 'won during play', value: breakdown.raceAward }] : []),
+              ...(breakdown.endgameAward > 0 ? [{ label: 'Endgame Award', sub: 'final scoring', value: breakdown.endgameAward }] : []),
+            ].filter(item => item.value !== 0);
+
             return (
               <div key={pid} style={{
-                background: 'var(--surface)',
-                border: `1px solid ${isWinner ? 'var(--accent)' : isIneligible ? 'var(--warn)' : 'var(--border)'}`,
-                borderRadius: 10, padding: 16,
+                background: isWinner ? 'var(--ink)' : 'var(--paper-soft)',
+                color: isWinner ? 'var(--paper)' : 'var(--ink)',
+                border: '2px solid var(--ink)',
+                boxShadow: isWinner ? '8px 8px 0 var(--accent)' : '4px 4px 0 var(--ink)',
                 opacity: isIneligible ? 0.6 : 1,
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                  {!isIneligible && (
-                    <span style={{
-                      width: 32, height: 32, borderRadius: '50%',
-                      background: rank === 0 ? 'var(--accent)' : 'var(--surface2)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontWeight: 700, fontSize: 14, flexShrink: 0,
-                    }}>
-                      {rank + 1}
-                    </span>
-                  )}
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 700, fontSize: 16 }}>{p.name}</div>
+                {/* Header */}
+                <div style={{ padding: '20px 24px', borderBottom: '2px solid var(--ink)', background: isWinner ? 'var(--accent)' : 'var(--paper-deep)', color: isWinner ? 'var(--paper)' : 'var(--ink)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div>
+                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', opacity: 0.8 }}>
+                      {isIneligible ? 'No venue — cannot win' : (isWinner ? 'Winner · most gifts' : `Rank ${rank + 1}`)}
+                    </div>
+                    <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 36, letterSpacing: '0.06em', textTransform: 'uppercase', lineHeight: 1, marginTop: 4 }}>
+                      {p.name}
+                    </div>
                     {p.theme && (
-                      <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>
-                        Theme: {p.theme.name}
+                      <div style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: 15, marginTop: 4, opacity: 0.8 }}>
+                        {p.theme.name}
                       </div>
                     )}
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: 24, fontWeight: 700, color: isWinner ? 'var(--accent)' : 'var(--text)' }}>
+                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', opacity: 0.8 }}>Total gifts</div>
+                    <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 60, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
                       {p.gifts}
                     </div>
-                    <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>gifts</div>
                   </div>
                 </div>
 
-                {/* Score breakdown */}
-                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
-                  <ScoreStat label="Excitement" value={`+${breakdown.excitement || p.excitement}`} />
-                  {Object.entries(breakdown.goals || {}).map(([type, gifts]) => (
-                    <ScoreStat key={type} label={`${type} goal`} value={`+${gifts}`} />
+                {/* Breakdown */}
+                <div style={{ padding: 24 }}>
+                  {breakdownItems.map((b, j) => (
+                    <div key={j} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 16, alignItems: 'baseline', padding: '10px 0', borderBottom: j < breakdownItems.length - 1 ? '1px solid var(--ink-line-2)' : 0 }}>
+                      <div>
+                        <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 13, letterSpacing: '0.10em', textTransform: 'uppercase', color: isWinner ? 'var(--paper)' : 'var(--ink)' }}>{b.label}</div>
+                        <div style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: isWinner ? 'var(--coin)' : 'var(--ink-3)', marginTop: 2 }}>{b.sub}</div>
+                      </div>
+                      <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 22, color: b.value < 0 ? 'var(--gift)' : (isWinner ? 'var(--coin)' : 'var(--gift)'), fontVariantNumeric: 'tabular-nums' }}>
+                        {b.value > 0 ? '+' : ''}{b.value}
+                      </div>
+                    </div>
                   ))}
-                  {breakdown.balanced > 0 && <ScoreStat label="Balanced Bonus" value={`+${breakdown.balanced}`} />}
-                  {breakdown.raceAward > 0 && <ScoreStat label="Race Award" value={`+${breakdown.raceAward}`} />}
-                  {breakdown.endgameAward > 0 && <ScoreStat label="Endgame Award" value={`+${breakdown.endgameAward}`} />}
-                  <ScoreStat label="Tasks" value={`${p.completedTasksCount} completed`} />
-                  <ScoreStat label="DIY" value={p.diyCount} />
+
+                  {breakdownItems.length === 0 && (
+                    <div style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: isWinner ? 'var(--coin)' : 'var(--ink-3)', fontStyle: 'italic' }}>
+                      Final gifts: {p.gifts}
+                    </div>
+                  )}
                 </div>
-
-                {isIneligible && (
-                  <div style={{ color: 'var(--warn)', fontSize: 12 }}>
-                    ⚠ No venue booked — cannot win
-                  </div>
-                )}
-
-                {/* Grid thumbnail */}
-                <VendorGrid grid={p.grid} isOwn={false} />
               </div>
             );
           })}
         </div>
 
-        <div style={{ marginTop: 32, textAlign: 'center' }}>
+        {/* Footer */}
+        <div style={{ marginTop: 32, padding: '20px 28px', background: 'var(--paper-soft)', border: '2px solid var(--ink)', boxShadow: '3px 3px 0 var(--ink)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16 }}>
+          <div style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: 18, color: 'var(--ink-2)', flex: 1 }}>
+            {winners.length > 1
+              ? `${winners.map(pid => players[pid].name).join(' & ')} tie with ${topScore} gifts.`
+              : `${players[winners[0]]?.name} wins with ${topScore} gifts.`
+            }
+          </div>
           <button
-            className="btn btn-primary"
-            style={{ padding: '12px 32px' }}
-            onClick={() => {
-              sessionStorage.removeItem('twp_session');
-              window.location.reload();
-            }}
+            style={{ padding: '12px 24px', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 13, letterSpacing: '0.16em', textTransform: 'uppercase', background: 'var(--accent)', color: 'var(--paper)', border: '2px solid var(--ink)', boxShadow: '3px 3px 0 var(--ink)', cursor: 'pointer' }}
+            onClick={() => { sessionStorage.removeItem('twp_session'); window.location.reload(); }}
           >
-            Back to Lobby
+            New Game
           </button>
         </div>
       </div>
-    </div>
-  );
-}
-
-function ScoreStat({ label, value }) {
-  return (
-    <div style={{
-      background: 'var(--surface2)', borderRadius: 6, padding: '4px 10px',
-      fontSize: 12,
-    }}>
-      <span style={{ color: 'var(--text-dim)' }}>{label}: </span>
-      <span style={{ fontWeight: 700 }}>{value}</span>
     </div>
   );
 }
