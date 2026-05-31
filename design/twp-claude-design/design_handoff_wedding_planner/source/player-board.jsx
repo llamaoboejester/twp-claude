@@ -556,18 +556,17 @@ const VisionBoard = ({
             return (
               <div key={n} style={{
                 display: "grid",
-                gridTemplateColumns: "auto 1fr auto",
+                gridTemplateColumns: "1fr auto",
                 gap: 8,
                 alignItems: "center",
                 border: "1.5px solid var(--ink)",
-                padding: "6px 8px",
+                padding: "6px 10px",
                 background: "var(--paper-deep)",
               }}>
-                <span className="t-eyebrow" style={{ color: "var(--ink-3)", whiteSpace: "nowrap" }}>Check-In {n}</span>
                 <div>
                   <div style={{
                     fontFamily: "var(--font-display)",
-                    fontWeight: 700, fontSize: 11,
+                    fontWeight: 700, fontSize: 12,
                     letterSpacing: "0.12em",
                     textTransform: "uppercase",
                     color: "var(--ink)",
@@ -596,15 +595,12 @@ const VisionBoard = ({
           }
           return (
             <div key={n} style={{
-              display: "grid",
-              gridTemplateColumns: "auto 1fr",
-              gap: 8,
+              display: "flex",
               alignItems: "center",
               border: "1.5px dashed var(--ink-line-2)",
-              padding: "6px 8px",
+              padding: "8px 10px",
               color: "var(--ink-3)",
             }}>
-              <span className="t-eyebrow" style={{ color: "var(--ink-3)", whiteSpace: "nowrap" }}>Check-In {n}</span>
               <span style={{
                 fontFamily: "var(--font-mono)",
                 fontSize: 10,

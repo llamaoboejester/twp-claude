@@ -140,8 +140,15 @@ const LobbyScreen = ({
         </div>
 
         <div>
-          <div className="t-eyebrow t-eyebrow-accent" style={{ marginBottom: 12 }}>Optional Modules · 0 of 5 active</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+            <div className="t-eyebrow t-eyebrow-accent">Optional Modules</div>
+            <span style={{
+              fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: "0.18em", textTransform: "uppercase",
+              color: "var(--paper)", background: "var(--ink)", padding: "3px 8px",
+            }}>Coming Soon</span>
+          </div>
+          <div style={{ position: "relative" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, opacity: 0.45, pointerEvents: "none", filter: "grayscale(0.4)" }}>
             {Object.entries(modules).map(([m, on]) => (
               <label key={m} style={{
                 display: "grid",
@@ -179,6 +186,16 @@ const LobbyScreen = ({
                 </span>
               </label>
             ))}
+          </div>
+            <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", pointerEvents: "none" }}>
+              <span style={{
+                transform: "rotate(-5deg)",
+                fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 22,
+                letterSpacing: "0.22em", textTransform: "uppercase", color: "var(--ink)",
+                background: "var(--coin)", border: "2px solid var(--ink)",
+                padding: "8px 20px", boxShadow: "4px 4px 0 var(--ink)",
+              }}>Coming Soon</span>
+            </div>
           </div>
         </div>
 
@@ -713,11 +730,11 @@ const useCardZoom = () => {
 // MODAL FRAME — used by all action modals
 // ——————————————————————————————————————————————————
 
-const Modal = ({ title, eyebrow, children, footer, width = 760, onClose, padding = 28 }) => (
+const Modal = ({ title, eyebrow, children, footer, width = 760, onClose, padding = 28, stepper = null, scrim = "rgba(20, 12, 8, 0.65)" }) => (
   <div style={{
     position: "absolute",
     inset: 0,
-    background: "rgba(20, 12, 8, 0.65)",
+    background: scrim,
     display: "grid",
     placeItems: "center",
     padding: 48,
@@ -771,6 +788,7 @@ const Modal = ({ title, eyebrow, children, footer, width = 760, onClose, padding
           cursor: "pointer",
         }}>Cancel</button>
       </div>
+      {stepper}
       <div style={{ padding }}>
         {children}
       </div>
@@ -794,106 +812,169 @@ const Modal = ({ title, eyebrow, children, footer, width = 760, onClose, padding
 // BOOK CARD MODAL
 // ——————————————————————————————————————————————————
 
-const BookCardModal = ({ card, targetCell = 1, coins = 7, onClose }) => (
-  <Modal
-    title="Book This Card"
-    eyebrow="Action · Book"
-    width={880}
-    onClose={onClose}
-    footer={
-      <>
-        <button style={{
-          padding: "10px 18px",
-          fontFamily: "var(--font-mono)",
-          fontSize: 11,
-          letterSpacing: "0.16em",
-          textTransform: "uppercase",
-          background: "var(--paper-soft)",
-          color: "var(--ink)",
-          border: "1.5px solid var(--ink)",
-          cursor: "pointer",
-        }}>
-          DIY for free
-        </button>
-        <button style={{
-          padding: "12px 24px",
-          fontFamily: "var(--font-display)",
-          fontWeight: 700,
-          fontSize: 14,
-          letterSpacing: "0.16em",
-          textTransform: "uppercase",
-          background: "var(--accent)",
-          color: "var(--paper)",
-          border: "2px solid var(--ink)",
-          boxShadow: "3px 3px 0 var(--ink)",
-          cursor: "pointer",
-        }}>
-          Book · pay {card?.cost ?? 3} coins
-        </button>
-      </>
-    }
-  >
-    <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: 32, alignItems: "flex-start" }}>
-      <VendorCardPhoto {...card} width={420} height={420} />
-      <div>
-        <div className="t-eyebrow t-eyebrow-accent" style={{ marginBottom: 8 }}>Booking into cell {targetCell + 1} · Bonus: {GRID_BONUS[targetCell]}</div>
-        <div style={{
-          fontFamily: "var(--font-serif)",
-          fontStyle: "italic",
-          fontSize: 28,
-          color: "var(--ink)",
-          lineHeight: 1.1,
-          marginBottom: 14,
-        }}>
-          You'll pay {card?.cost} coins, gain +{card?.excitement} excitement, and advance: {card?.elements.map(e => (
-            <span key={e} style={{
-              display: "inline-block",
-              padding: "0 6px",
-              border: `1.5px solid var(--ink)`,
-              fontSize: 14,
-              marginLeft: 4,
-              background: `var(--el-${e})`,
-              color: e === "elegance" ? "var(--ink)" : "var(--paper)",
-              fontFamily: "var(--font-display)",
-              fontStyle: "normal",
-              letterSpacing: "0.10em",
-              textTransform: "uppercase",
-            }}>{e}</span>
-          ))}
+const BookCardModal = ({ card, targetCell = 1, coins = 7, onClose, stepper = null }) => {
+  const cost = card?.cost ?? 3;
+  const elements = card?.elements ?? [];
+  const balanceAfter = coins - cost;
+  const Detail = card?.type === "venue" ? VenueCardDetail : VendorCardDetail;
+  const steps = [
+    { n: 1, label: "Advance theme element trackers", detail: elements.map(e => e.replace(/^\w/, c => c.toUpperCase())).join(" · ") },
+    { n: 2, label: "Advance excitement", detail: `+${card?.excitement}` },
+    { n: 3, label: "Check all 3 active Moments", detail: null },
+    ...(card?.whenBooked ? [{ n: 4, label: "Resolve When Booked", detail: card.whenBooked }] : []),
+    { n: card?.whenBooked ? 5 : 4, label: "Resolve grid bonus", detail: GRID_BONUS[targetCell] },
+  ];
+
+  return (
+    <Modal
+      title="Book This Card"
+      eyebrow="Action · Book"
+      width={1000}
+      padding={0}
+      onClose={onClose}
+      stepper={stepper}
+      footer={
+        <>
+          <button style={bookBtnGhost}>DIY for free</button>
+          <button style={bookBtnPrimary}>Book · pay {cost} coins</button>
+        </>
+      }
+    >
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", alignItems: "stretch" }}>
+
+        {/* ——— LEFT: the card ——— */}
+        <div style={{ borderRight: "2px solid var(--ink)", display: "flex", flexDirection: "column" }}>
+          <div style={{
+            padding: "12px 20px",
+            background: "var(--paper-deep)",
+            borderBottom: "2px solid var(--ink)",
+            display: "flex", justifyContent: "space-between", alignItems: "center",
+          }}>
+            <div className="t-eyebrow" style={{ color: "var(--ink-3)" }}>Booking into cell {targetCell + 1}</div>
+            <div className="t-eyebrow t-eyebrow-accent">Grid bonus · {GRID_BONUS[targetCell]}</div>
+          </div>
+          <div style={{ flex: 1, display: "grid", placeItems: "center", padding: 28 }}>
+            <Detail {...card} width={400} height={400} />
+          </div>
         </div>
-        <hr className="rule-hair" />
-        <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
-          <div>
-            <div className="t-eyebrow" style={{ color: "var(--ink-3)", marginBottom: 6 }}>Cost</div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <CostChip cost={card?.cost ?? 3} size={36} />
-              <div style={{ fontFamily: "var(--font-sans)", fontSize: 13, color: "var(--ink-2)" }}>
-                You have {coins}. After: <strong style={{ color: "var(--ink)" }}>{coins - (card?.cost ?? 3)}</strong>
+
+        {/* ——— RIGHT: the booking rail ——— */}
+        <div style={{ background: "var(--paper-soft)", display: "flex", flexDirection: "column" }}>
+
+          {/* payment block */}
+          <div style={{ padding: "18px 20px", borderBottom: "2px solid var(--ink)", background: "var(--ink)" }}>
+            <div className="t-eyebrow" style={{ color: "var(--coin)", marginBottom: 12 }}>Payment</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <CostChip cost={cost} size={40} />
+              <div>
+                <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 20, color: "var(--paper)", lineHeight: 1 }}>
+                  {cost} {cost === 1 ? "coin" : "coins"}
+                </div>
+                <div style={{ fontFamily: "var(--font-sans)", fontSize: 12, color: "var(--paper)", marginTop: 4 }}>
+                  Balance <span style={{ color: "var(--coin)" }}>{coins}</span>
+                  <span style={{ color: "var(--ink-4)" }}> → </span>
+                  <strong style={{ color: "var(--coin)" }}>{balanceAfter}</strong>
+                </div>
               </div>
             </div>
           </div>
-          <div>
-            <div className="t-eyebrow" style={{ color: "var(--ink-3)", marginBottom: 6 }}>Triggered after booking</div>
-            <ol style={{
-              margin: 0,
-              padding: "0 0 0 18px",
-              fontFamily: "var(--font-sans)",
-              fontSize: 12,
-              lineHeight: 1.55,
-              color: "var(--ink-2)",
-            }}>
-              <li>Advance theme element trackers</li>
-              <li>Advance excitement (+{card?.excitement})</li>
-              <li>Check all 3 active Moments</li>
-              <li>Resolve When Booked effect (if any)</li>
-              <li>Resolve grid bonus: <strong style={{ color: "var(--accent)" }}>{GRID_BONUS[targetCell]}</strong></li>
-            </ol>
+
+          {/* body */}
+          <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 16, flex: 1 }}>
+
+            {/* advances */}
+            {elements.length > 0 && (
+              <div>
+                <div className="t-eyebrow t-eyebrow-accent" style={{ marginBottom: 8 }}>
+                  Advances theme ({elements.length})
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  {elements.map(e => (
+                    <div key={e} style={{
+                      display: "flex", alignItems: "center", justifyContent: "space-between",
+                      padding: "5px 8px", background: "var(--paper-deep)", border: "1px solid var(--ink-line-2)",
+                    }}>
+                      <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <ElementIcon element={e} size={20} mode="stamp" style={{ borderRadius: "50%", border: "1.5px solid var(--ink)" }} />
+                        <span style={{ fontFamily: "var(--font-sans)", fontSize: 12, color: "var(--ink)", textTransform: "capitalize" }}>{e}</span>
+                      </span>
+                      <span style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 13, color: "var(--accent)" }}>+1</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* when booked — shown on the card art + as a resolution step below */}
+
+            {/* resolution order */}
+            <div>
+              <div className="t-eyebrow t-eyebrow-accent" style={{ marginBottom: 8 }}>Resolves in order</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {steps.map(s => (
+                  <div key={s.n} style={{ display: "grid", gridTemplateColumns: "18px 1fr", gap: 8, alignItems: "baseline" }}>
+                    <span style={{
+                      width: 18, height: 18, display: "grid", placeItems: "center",
+                      background: "var(--ink)", color: "var(--paper)",
+                      fontFamily: "var(--font-mono)", fontSize: 9, lineHeight: 1,
+                    }}>{s.n}</span>
+                    <span style={{ fontFamily: "var(--font-sans)", fontSize: 11.5, color: "var(--ink-2)", lineHeight: 1.3 }}>
+                      {s.label}
+                      {s.detail && <span style={{ color: "var(--ink-3)" }}> · {s.detail}</span>}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ flex: 1 }} />
+
+            {/* totals footer */}
+            <div style={{ borderTop: "2px solid var(--ink)", paddingTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                <span className="t-eyebrow" style={{ color: "var(--ink-3)" }}>Excitement gained</span>
+                <span style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 22, color: "var(--excite)", fontVariantNumeric: "tabular-nums" }}>
+                  +{card?.excitement}
+                </span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                <span className="t-eyebrow" style={{ color: "var(--ink-3)" }}>Coins after</span>
+                <span style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 15, color: "var(--ink)", fontVariantNumeric: "tabular-nums" }}>
+                  {coins}<span style={{ color: "var(--ink-3)" }}> → </span><span style={{ color: balanceAfter < 0 ? "var(--accent)" : "var(--ink)" }}>{balanceAfter}</span>
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  </Modal>
-);
+    </Modal>
+  );
+};
+
+const bookBtnGhost = {
+  padding: "10px 18px",
+  fontFamily: "var(--font-mono)",
+  fontSize: 11,
+  letterSpacing: "0.16em",
+  textTransform: "uppercase",
+  background: "var(--paper-soft)",
+  color: "var(--ink)",
+  border: "1.5px solid var(--ink)",
+  cursor: "pointer",
+};
+const bookBtnPrimary = {
+  padding: "12px 24px",
+  fontFamily: "var(--font-display)",
+  fontWeight: 700,
+  fontSize: 14,
+  letterSpacing: "0.16em",
+  textTransform: "uppercase",
+  background: "var(--accent)",
+  color: "var(--paper)",
+  border: "2px solid var(--ink)",
+  boxShadow: "3px 3px 0 var(--ink)",
+  cursor: "pointer",
+};
 
 // ——————————————————————————————————————————————————
 // WILD PICK MODAL

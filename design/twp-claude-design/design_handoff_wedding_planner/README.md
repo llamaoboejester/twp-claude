@@ -112,10 +112,18 @@ Switch screens via the top demo nav in the prototype. Each is a fixed 1440‑wid
 1. **Lobby** — pre‑game setup / seating and game‑variant toggles.
 2. **Mid‑Game** *(the primary screen)* — the full table. Three‑column layout (see below).
 3. **Q1 · pre‑Check‑In** — the board before the first check‑in, theme not yet chosen (Vision Board shows theme options).
-4. **Book Modal** — the "Book This Card" action modal: a square card preview (420×420) beside the booking detail/cost.
-5. **Wild Pick** — choosing a Wild theme element (the "any of the above" element).
-6. **Check‑In 1** — the scoring screen at a check‑in milestone (goals scored, coins/gifts awarded).
-7. **End Game** — final scoring / winner.
+4. **Book Flow** — the full **3-step Book action** (`book-flow.jsx` → `BookCardFlow`): **Step 1 Choose Card** (pick from hand, affordability-gated), **Step 2 Choose Position** (place on the 3×3 grid; legal cells highlighted, venues centre-only), **Step 3 Confirm & Book** (the `BookCardModal`, a square 400px card preview beside the payment/resolution rail). A shared **stepper** strip ties the three together (and lets you click back).
+5. **Plan Turn** — the **Plan action** modal (`plan-turn.jsx` → `PlanActionModal`). A Plan action applies **3 effort** across unlocked tasks; this is the interactive allocation view (see its own section below).
+6. **Wild Pick** — choosing a Wild theme element (the "any of the above" element).
+7. **Check‑In 1** — the scoring screen at a check‑in milestone (goals scored, coins/gifts awarded).
+8. **End Game** — final scoring / winner.
+
+   *Check-In is a **modal over the live board** (`check-in.jsx` → `CheckInModal`): Step 1 Set Theme
+   (CI1 only), Step 2 Set a Goal, on a light scrim so the player reads their trackers / hand / FVR on
+   the board behind it to decide. The goal step is a two-level pick — choose a goal **type** (Theme /
+   Budget / Excitement / Guest), then its specific goal: tiers for Theme/Budget/Excitement (e.g. Budget →
+   Extravagant +15 / Refined +10 / Modest +5) or a category for Guest (Admired…Spoiled, scaling +5/10/15).
+   No board-state readouts embedded — just the choices.*
 
 ### Mid‑Game layout (the main screen)
 Top to bottom: **Timeline** (12 months · 3 check‑ins · 4 quarters, full width) → **Excitement track**
@@ -160,6 +168,48 @@ Collapsible. Header always shows all four stats in the **canonical order Excite 
 ### Labels / copy rule
 Check‑ins are always written out as **"Check‑In 1 / 2 / 3"** — never the "CI1" abbreviation.
 
+### Book Flow (`source/book-flow.jsx` → `BookCardFlow`)
+The full **3-step Book action**, built on the shared `<Modal>` frame + its `stepper` slot:
+- **`BookStepper`** — a strip below the modal header showing the three steps (done = ink ✓, current =
+  accent, upcoming = muted). Completed steps are clickable to jump back.
+- **Step 1 `BookChooseCard`** — a dark "PAYMENT"-style subheader (hand count + coin balance) over a
+  centered row of hand cards (real `VendorCard`/`VenueCard` minis at 172px). Each card hover-lifts with
+  an accent outline + a "Select →" affordance; **unaffordable cards** (cost > coins) are dimmed and
+  non-clickable. Clicking advances to step 2.
+- **Step 2 `BookChoosePosition`** — divided two-column layout: left = the chosen card (200px) with a
+  cost/excite summary and "Change card"; right = the 3×3 wedding grid. **Legal** cells get a 3px accent
+  border, a large cell number, the `+BONUS` label, and a "Place here" hover cue; **occupied** cells show
+  the booked vendor (category tone + icon + name) or a DIY tile; the **center is venue-only** (legal only
+  for a venue card, otherwise shown muted "Venue only"). Clicking a legal cell advances to step 3.
+- **Step 3** — the existing `BookCardModal`, now passed the stepper.
+
+Cell legality rule (mirror in the target app): a cell is bookable if it's empty AND (it's the center and
+the card is a venue, OR it's a non-center cell and the card is a vendor). The chosen cell's `GRID_BONUS`
+resolves on placement.
+
+### Plan Turn modal (`source/plan-turn.jsx` → `PlanActionModal`)
+The interactive form of a **Plan** action: the player applies **3 effort** (the `effortBudget` prop;
+the optional "Final Push" event would raise this to 4) across unlocked tasks. Built on the shared
+`<Modal>` frame. Two columns:
+- **Left — the worksheet.** All tasks, grouped, with clickable effort boxes. Pre‑filled boxes are
+  solid ink; effort added *this turn* is accent‑colored; the next assignable box shows a `+`.
+  Clicking the next empty box spends 1 effort; clicking the last box you added refunds it (fill/unfill
+  is strictly sequential). Locked tasks are dimmed with their unlock condition; completed tasks are
+  struck through; **key tasks** (★) are flagged "YOU ONLY"; slot hooks are labeled (e.g. "SLOT 3: +1 exc").
+  A row about to complete is washed in accent.
+- **Right — live "this turn" rail.** An effort budget meter (3 coin‑ringed dots that fill as spent,
+  with "N effort left to assign"), then a live tally that updates as you allocate: **Completing (N)**
+  tasks with their `+gifts`, **Hooks fired** (slot rewards triggered this turn), **Tracker milestones**
+  crossed on the Completed‑Tasks tracker (4/8/10/12/16/20), and a totals footer (**Gifts gained**,
+  **Completed tasks** `start → end /28`).
+- **Footer:** Reset + primary "Confirm Plan · spend N effort" (disabled until ≥1 effort is assigned).
+
+**Completion rules to mirror in the target app:** a task completes when its filled boxes reach its
+required effort → award its gifts, mark it on the Completed‑Tasks tracker, then resolve any milestone
+crossings. A slot hook fires the moment its specific box is filled. Key tasks can only be worked by the
+player directly (not helpers / planner coordination). All 3 effort may stack on one task or split across
+many.
+
 ---
 
 ## Interactions & behavior
@@ -200,7 +250,10 @@ source/
   player-board.jsx                     ← WeddingGrid, theme/excitement trackers, Hand, Helpers, Vision Board, Action Dock
   central-board.jsx                    ← Timeline, Excitement track, Moments & Awards, FVR
   screens.jsx                          ← Mid‑Game layouts + OpponentSummary scorecard
-  flows.jsx                            ← lobby, check‑in, end‑game, modals
+  flows.jsx                            ← lobby, check‑in, end‑game, modals (Modal frame, Book, Wild Pick)
+  plan-turn.jsx                        ← PlanActionModal — the interactive Plan (apply‑effort) turn
+  book-flow.jsx                        ← BookCardFlow — the 3-step Book action (choose card / position / confirm) + BookStepper
+  check-in.jsx                         ← CheckInModal — Check-In as a modal (Set Theme / Set Goal) over the live board
   tasks.jsx                            ← task worksheet
   fixtures.jsx                         ← sample game state driving every screen
   design-canvas.jsx                    ← pan/zoom canvas used by index.html

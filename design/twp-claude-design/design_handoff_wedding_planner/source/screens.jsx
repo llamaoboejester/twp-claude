@@ -218,12 +218,11 @@ const OpponentSummary = ({ state, defaultCollapsed = false }) => {
                 if (g) {
                   return (
                     <div key={n} style={{
-                      display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 8, alignItems: "center",
-                      border: "1.5px solid var(--ink)", padding: "5px 8px", background: "var(--paper-deep)",
+                      display: "grid", gridTemplateColumns: "1fr auto", gap: 8, alignItems: "center",
+                      border: "1.5px solid var(--ink)", padding: "5px 10px", background: "var(--paper-deep)",
                     }}>
-                      <span className="t-eyebrow" style={{ color: "var(--ink-3)", whiteSpace: "nowrap" }}>Check-In {n}</span>
                       <div>
-                        <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--ink)" }}>{g.type}</div>
+                        <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--ink)" }}>{g.type}</div>
                         <div style={{ fontFamily: "var(--font-serif)", fontStyle: "italic", fontSize: 12, color: "var(--ink-2)", lineHeight: 1 }}>{g.tier}</div>
                       </div>
                       <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 16, color: "var(--gift)", fontVariantNumeric: "tabular-nums" }}>+{g.value}</div>
@@ -232,11 +231,10 @@ const OpponentSummary = ({ state, defaultCollapsed = false }) => {
                 }
                 return (
                   <div key={n} style={{
-                    display: "grid", gridTemplateColumns: "auto 1fr", gap: 8, alignItems: "center",
-                    border: "1.5px dashed var(--ink-line-2)", padding: "5px 8px", color: "var(--ink-4)",
+                    display: "flex", alignItems: "center",
+                    border: "1.5px dashed var(--ink-line-2)", padding: "7px 10px", color: "var(--ink-4)",
                   }}>
-                    <span className="t-eyebrow" style={{ color: "var(--ink-3)", whiteSpace: "nowrap" }}>Check-In {n}</span>
-                    <span style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase" }}>Not yet set</span>
+                    <span style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase" }}>Goal not yet set</span>
                   </div>
                 );
               })}
